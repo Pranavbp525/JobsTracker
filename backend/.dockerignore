@@ -1,0 +1,21 @@
+# backend/.dockerignore
+
+# Ignore virtual environment
+venv/
+*/venv/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore sensitive files (shouldn't be needed if using docker-compose env vars)
+.env
+
+# Ignore Git directory
+.git

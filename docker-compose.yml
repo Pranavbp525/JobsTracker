@@ -1,0 +1,58 @@
+# docker-compose.yml
+version: '3.8' # Specify docker-compose version
+
+services:
+  # PostgreSQL Database Service
+  db:
+    image: postgres:14-alpine # Use official PostgreSQL image
+    container_name: jobtracker_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persist data using a named volume
+    environment:
+      # These credentials MUST match the ones used in the backend's DATABASE_URL
+      POSTGRES_USER: jobtracker_user
+      POSTGRES_PASSWORD: your_strong_password # CHANGE THIS PASSWORD
+      POSTGRES_DB: jobtracker_db
+    ports:
+      - "5432:5432" # Map host port 5432 to container port 5432 (optional, for external tools)
+    restart: unless-stopped
+
+  # Backend Flask Service
+  backend:
+    build: ./backend # Path to the directory containing the backend Dockerfile
+    container_name: jobtracker_backend
+    ports:
+      - "5001:5001" # Map host port 5001 to container port 5001
+    volumes:
+      - ./backend:/app # Mount local backend code into container (optional, good for development)
+                      # Remove this line for production builds for better image immutability
+    environment:
+      # Construct the database URL using the service name 'db' and credentials from above
+      DATABASE_URL: postgresql://jobtracker_user:your_strong_password@db:5432/jobtracker_db # Use 'db' as hostname
+      FLASK_APP: app.py
+      # Uncomment for development mode (enables debug, auto-reload)
+      # FLASK_ENV: development
+      # PYTHONUNBUFFERED: 1 # Already set in Dockerfile, but can be redundant here
+    depends_on:
+      - db # Ensure database starts before the backend
+    restart: unless-stopped
+
+  # Frontend Nginx Service
+  frontend:
+    image: nginx:stable-alpine # Use official Nginx image
+    container_name: jobtracker_frontend
+    ports:
+      - "8080:80" # Map host port 8080 to container port 80 (Nginx default)
+    volumes:
+      # Mount the local frontend directory containing index.html into Nginx's web root
+      - ./frontend:/usr/share/nginx/html:ro # Mount as read-only
+      # Optional: Mount a custom Nginx config if needed later
+      # - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend # Optional: Ensures backend is likely ready, though Nginx starts fast
+    restart: unless-stopped
+
+# Define the named volume for PostgreSQL data persistence
+volumes:
+  postgres_data:
+    driver: local

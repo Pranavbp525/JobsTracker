@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Application Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .btn { @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2; }
+        .btn-primary { @apply bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500; }
+        .btn-secondary { @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500; }
+        .btn-success { @apply bg-green-600 hover:bg-green-700 focus:ring-green-500; }
+        .btn-danger { @apply bg-red-600 hover:bg-red-700 focus:ring-red-500; }
+        .btn-warning { @apply bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-400 text-black; }
+        .btn-icon { @apply p-2 rounded-full text-gray-500 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500; }
+        .btn:disabled { @apply bg-gray-400 cursor-not-allowed hover:bg-gray-400 opacity-70; }
+
+        .calendar-day { @apply w-9 h-9 flex items-center justify-center border border-gray-300 rounded-md text-sm cursor-pointer hover:bg-gray-100; }
+        .calendar-day.logged { border-radius: 50% !important; @apply bg-blue-500 text-white font-bold border-transparent; }
+        .calendar-day.incomplete { border-radius: 50% !important; @apply bg-red-500 text-white font-bold border-transparent; }
+        .calendar-day.today { @apply ring-2 ring-indigo-500 ring-offset-1; }
+        .calendar-day.logged.today { background-color: #3b82f6 !important; border-radius: 50% !important; @apply text-white font-bold border-transparent ring-2 ring-indigo-500 ring-offset-1; }
+        .calendar-day.incomplete.today { background-color: #ef4444 !important; border-radius: 50% !important; @apply text-white font-bold border-transparent ring-2 ring-indigo-500 ring-offset-1; }
+        .calendar-day.other-month { @apply text-gray-400 bg-gray-50 cursor-default hover:bg-gray-50; }
+        .table-input { @apply block w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm; }
+        .modal { @apply fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50; }
+        .modal-content { @apply bg-white p-6 rounded-lg shadow-xl max-w-sm mx-auto; }
+        .paused-overlay { @apply absolute inset-0 bg-gray-300 bg-opacity-50 flex items-center justify-center rounded-lg z-10; }
+        .paused-overlay span { @apply bg-gray-700 text-white px-4 py-2 rounded-md text-lg font-semibold; }
+
+        /* Styles for Past Log Display Area */
+        /* Card container for the past logs - REMOVED mt-8 */
+        .past-log-card {
+             @apply bg-white p-6 rounded-lg shadow-md border border-gray-200;
+        }
+        #past-log-display { /* No specific styles needed here now */ }
+        #past-log-display h3 { @apply text-xl font-semibold mb-4 text-gray-900; }
+        #past-log-display table { @apply min-w-full divide-y divide-gray-200 border border-gray-300 rounded-lg shadow-sm; }
+        #past-log-display th { @apply px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-100 rounded-t-lg; }
+        #past-log-display td { @apply px-4 py-3 whitespace-nowrap text-sm text-gray-800; }
+        #past-log-display tbody tr:nth-child(even) { @apply bg-gray-50; }
+        #past-log-display p { @apply text-base text-gray-600 italic mt-4 text-center; }
+        .status-complete { @apply text-blue-700 font-semibold; }
+        .status-incomplete { @apply text-red-700 font-semibold; }
+        .status-na { @apply text-gray-600 font-semibold; }
+
+        /* Style for the horizontal separator */
+        .section-separator {
+            /* Increased vertical margin (my-16) */
+            @apply border-t-2 border-gray-300 my-16; /* Increased margin */
+        }
+
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-lg">
+        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Job Application Tracker</h1>
+
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200 gap-4">
+            <div class="mb-4 md:mb-0">
+                <label for="daily-goal" class="block text-sm font-medium text-gray-700 mb-1">Daily Goal:</label>
+                <input type="number" id="daily-goal" name="daily-goal" min="1" value="5" class="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div class="text-center">
+                <span class="text-sm font-semibold text-gray-800">Total Streak:</span>
+                <span id="total-streak-counter" class="text-xl font-bold text-indigo-600 ml-1">0</span>
+                <span class="text-sm font-semibold text-gray-800"> days</span>
+            </div>
+            <div class="text-center">
+                <span class="text-sm font-semibold text-gray-800">Goal Streak:</span>
+                <span id="goal-streak-counter" class="text-xl font-bold text-green-600 ml-1">0</span>
+                <span class="text-sm font-semibold text-gray-800"> days</span>
+            </div>
+             <div class="text-center">
+                 <span class="text-sm font-semibold text-gray-800">Total Days Logged: <span id="total-days-logged" class="text-xl font-bold text-gray-900">0</span></span>
+             </div>
+        </div>
+
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-2 md:gap-4">
+            <button id="start-log-button" class="btn btn-primary w-full md:w-auto order-1 md:order-1">
+                <i class="fas fa-play mr-2"></i>Start Logging
+            </button>
+            <div id="timer-section" class="text-center hidden order-3 md:order-2 mt-2 md:mt-0">
+                <span class="text-lg font-medium text-gray-700">Time Elapsed:</span>
+                <span id="timer" class="text-xl font-bold text-gray-900 ml-2">00:00:00</span>
+            </div>
+            <button id="pause-resume-button" class="btn btn-warning w-full md:w-auto hidden order-2 md:order-3">
+                <i class="fas fa-pause mr-2"></i>Pause
+            </button>
+            <button id="finish-day-button" class="btn btn-success w-full md:w-auto hidden order-4 md:order-4">
+                <i class="fas fa-flag-checkered mr-2"></i>Finish Day
+            </button>
+             <button id="reset-button" class="btn btn-danger w-full md:w-auto order-5 md:order-5 mt-2 md:mt-0">
+                <i class="fas fa-trash-alt mr-2"></i>Reset All Data
+            </button>
+        </div>
+
+        <div id="logging-area" class="hidden relative"> <div id="paused-overlay" class="paused-overlay hidden">
+                 <span>Paused</span>
+             </div>
+            <div class="mb-4">
+                <div class="flex justify-between mb-1">
+                    <span class="text-sm font-medium text-indigo-700">Progress</span>
+                    <span id="progress-text" class="text-sm font-medium text-indigo-700">0% (0 / 5)</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="mb-4 overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job/Position</th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resume Used</th>
+                            <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Done</th>
+                        </tr>
+                    </thead>
+                    <tbody id="application-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+            <div class="text-center">
+                <button id="add-row-button" class="btn btn-secondary">
+                    <i class="fas fa-plus mr-2"></i>Add Application
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-gray-200"> <h2 class="text-xl font-semibold text-center text-gray-800 mb-4">Monthly Progress</h2>
+            <div class="flex justify-between items-center mb-4">
+                 <button id="prev-month" class="btn btn-icon"><i class="fas fa-chevron-left"></i></button>
+                 <h3 id="calendar-month-year" class="text-lg font-medium text-gray-700">Month Year</h3>
+                 <button id="next-month" class="btn btn-icon"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <div class="grid grid-cols-7 gap-1 text-center mb-2 text-xs font-medium text-gray-500">
+                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-7 gap-2 justify-items-center"></div>
+        </div>
+
+        <hr class="section-separator hidden" id="log-separator">
+
+        <div class="past-log-card hidden" id="past-log-card-container"> <div id="past-log-display">
+                </div>
+        </div>
+
+    </div>
+
+    <div id="confirmation-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 class="text-lg font-medium leading-6 text-gray-900 mb-2" id="modal-title">Confirm Action</h3>
+            <p class="text-sm text-gray-500 mb-4" id="modal-message">Are you sure?</p>
+            <div class="flex justify-end gap-3">
+                <button id="modal-cancel" class="btn btn-secondary">Cancel</button>
+                <button id="modal-confirm" class="btn btn-danger">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- API Configuration ---
+        const API_BASE_URL = 'http://localhost:5001/api';
+
+        // --- DOM Elements ---
+        const dailyGoalInput = document.getElementById('daily-goal');
+        const totalStreakCounterEl = document.getElementById('total-streak-counter');
+        const goalStreakCounterEl = document.getElementById('goal-streak-counter');
+        const totalDaysLoggedEl = document.getElementById('total-days-logged');
+        const startLogButton = document.getElementById('start-log-button');
+        const finishDayButton = document.getElementById('finish-day-button');
+        const pauseResumeButton = document.getElementById('pause-resume-button');
+        const resetButton = document.getElementById('reset-button');
+        const timerSection = document.getElementById('timer-section');
+        const timerEl = document.getElementById('timer');
+        const loggingArea = document.getElementById('logging-area');
+        const pausedOverlay = document.getElementById('paused-overlay');
+        const progressTextEl = document.getElementById('progress-text');
+        const progressBarEl = document.getElementById('progress-bar');
+        const applicationTableBody = document.getElementById('application-table-body');
+        const addRowButton = document.getElementById('add-row-button');
+        const calendarGrid = document.getElementById('calendar-grid');
+        const calendarMonthYear = document.getElementById('calendar-month-year');
+        const prevMonthButton = document.getElementById('prev-month');
+        const nextMonthButton = document.getElementById('next-month');
+        const logSeparator = document.getElementById('log-separator'); // Get separator
+        const pastLogCardContainer = document.getElementById('past-log-card-container');
+        const pastLogDisplay = document.getElementById('past-log-display');
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalCancel = document.getElementById('modal-cancel');
+        const modalConfirm = document.getElementById('modal-confirm');
+
+        // --- Frontend State Variables ---
+        let state = {
+            dailyGoal: 5,
+            fetchedTotalStreak: 0, fetchedGoalStreak: 0, fetchedTotalDays: 0,
+            fetchedLastCompleted: null, fetchedLastStatus: null,
+            currentSession: {
+                active: false, isPaused: false, startTime: null, applications: [],
+                completedCount: 0, timerInterval: null, elapsedSeconds: 0, baseElapsedSeconds: 0
+            },
+            calendarDate: new Date()
+        };
+        let confirmCallback = null;
+
+        // --- Utility Functions ---
+        const getTodayDateString = () => new Date().toISOString().split('T')[0];
+        const formatTime = (totalSeconds) => { /* ... unchanged ... */
+             const hours = Math.floor(totalSeconds / 3600);
+             const minutes = Math.floor((totalSeconds % 3600) / 60);
+             const seconds = totalSeconds % 60;
+             return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+         };
+        const showModal = (title, message, onConfirm) => { /* ... unchanged ... */
+             modalTitle.textContent = title;
+             modalMessage.textContent = message;
+             confirmCallback = onConfirm;
+             confirmationModal.classList.remove('hidden');
+         };
+        const hideModal = () => { /* ... unchanged ... */
+             confirmationModal.classList.add('hidden');
+             confirmCallback = null;
+         };
+         const sanitize = (str) => { /* ... unchanged ... */
+            if (!str) return 'N/A';
+            const temp = document.createElement('div');
+            temp.textContent = str;
+            return temp.innerHTML;
+         };
+
+
+        // --- Core Logic Functions ---
+        async function loadState() { /* ... unchanged ... */
+             console.log("Loading state from backend...");
+            try {
+                const response = await fetch(`${API_BASE_URL}/state`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                state.dailyGoal = data.dailyGoal;
+                state.fetchedTotalStreak = data.totalStreak;
+                state.fetchedGoalStreak = data.goalStreak;
+                state.fetchedTotalDays = data.totalDaysLogged;
+                state.fetchedLastCompleted = data.lastCompletedDate;
+                state.fetchedLastStatus = data.lastLogStatus;
+                console.log("State loaded from backend:", data);
+            } catch (error) {
+                console.error("Error loading state from backend:", error);
+                alert("Error loading data from server. Using default values.");
+                state.dailyGoal = 5; state.fetchedTotalStreak = 0; state.fetchedGoalStreak = 0;
+                state.fetchedTotalDays = 0; state.fetchedLastCompleted = null; state.fetchedLastStatus = null;
+            }
+            dailyGoalInput.value = state.dailyGoal;
+            updateStreakCounters();
+            updateTotalDaysCounter();
+            state.calendarDate = new Date();
+            await renderCalendar();
+            updateUI();
+        }
+
+        const updateUI = () => { /* ... unchanged ... */
+            dailyGoalInput.value = state.dailyGoal;
+            dailyGoalInput.disabled = state.currentSession.active; // Disable goal change during session
+
+            updateStreakCounters();
+            updateTotalDaysCounter();
+
+            const today = getTodayDateString();
+            const isTodayLogged = state.fetchedLastCompleted === today;
+
+            // --- Button Visibility and Text ---
+            if (state.currentSession.active) {
+                // Session is active
+                startLogButton.classList.add('hidden'); // Hide Start button
+                pauseResumeButton.classList.remove('hidden');
+                finishDayButton.classList.remove('hidden'); // Finish always visible when active
+                timerSection.classList.remove('hidden');
+                loggingArea.classList.remove('hidden');
+
+                // Pause/Resume button state
+                if (state.currentSession.isPaused) {
+                    pauseResumeButton.innerHTML = `<i class="fas fa-play mr-2"></i>Resume`;
+                    pausedOverlay.classList.remove('hidden');
+                    // Disable inputs/buttons when paused
+                    addRowButton.disabled = true;
+                    applicationTableBody.querySelectorAll('input, button').forEach(el => el.disabled = true);
+                } else {
+                    pauseResumeButton.innerHTML = `<i class="fas fa-pause mr-2"></i>Pause`;
+                    pausedOverlay.classList.add('hidden');
+                    // Enable inputs/buttons when not paused
+                    addRowButton.disabled = false;
+                     applicationTableBody.querySelectorAll('input, button').forEach(el => el.disabled = false);
+                }
+
+            } else {
+                // Session is not active
+                startLogButton.classList.remove('hidden'); // Show Start/Resume button
+                pauseResumeButton.classList.add('hidden');
+                finishDayButton.classList.add('hidden');
+                timerSection.classList.add('hidden');
+                loggingArea.classList.add('hidden');
+                pausedOverlay.classList.add('hidden'); // Ensure overlay is hidden
+
+                // Start button text depends on whether today was logged
+                if (isTodayLogged) {
+                    startLogButton.innerHTML = `<i class="fas fa-redo mr-2"></i>Continue Logging`;
+                } else {
+                    startLogButton.innerHTML = `<i class="fas fa-play mr-2"></i>Start Logging`;
+                }
+            }
+
+            // General state updates
+            if (state.currentSession.active) {
+                 renderApplicationTable(); // Render table based on local session applications
+                 timerEl.textContent = formatTime(state.currentSession.elapsedSeconds);
+                 updateProgressBar();
+            } else {
+                 progressBarEl.style.width = `0%`;
+                 progressTextEl.textContent = `0% (0 / ${state.dailyGoal})`;
+            }
+        };
+        const updateStreakCounters = () => { /* ... unchanged ... */
+            totalStreakCounterEl.textContent = state.fetchedTotalStreak;
+            goalStreakCounterEl.textContent = state.fetchedGoalStreak;
+         };
+        const updateTotalDaysCounter = () => { totalDaysLoggedEl.textContent = state.fetchedTotalDays; };
+        const updateProgressBar = () => { /* ... unchanged ... */
+            if (!state.currentSession.active) return;
+            const goal = state.dailyGoal;
+            const completed = state.currentSession.completedCount;
+            const percentage = goal > 0 ? Math.min(100, Math.round((completed / goal) * 100)) : 0;
+            progressBarEl.style.width = `${percentage}%`;
+            progressTextEl.textContent = `${percentage}% (${completed} / ${goal})`;
+         };
+        const startTimer = () => { /* ... unchanged ... */
+            if (state.currentSession.timerInterval) clearInterval(state.currentSession.timerInterval);
+            state.currentSession.startTime = Date.now();
+            timerEl.textContent = formatTime(state.currentSession.elapsedSeconds);
+            state.currentSession.timerInterval = setInterval(() => {
+                const sessionDuration = Math.floor((Date.now() - state.currentSession.startTime) / 1000);
+                state.currentSession.elapsedSeconds = state.currentSession.baseElapsedSeconds + sessionDuration;
+                timerEl.textContent = formatTime(state.currentSession.elapsedSeconds);
+            }, 1000);
+         };
+        const stopTimer = () => { /* ... unchanged ... */
+             if (state.currentSession.timerInterval) {
+                clearInterval(state.currentSession.timerInterval);
+                state.currentSession.timerInterval = null;
+                const sessionDuration = Math.floor((Date.now() - state.currentSession.startTime) / 1000);
+                state.currentSession.baseElapsedSeconds += sessionDuration;
+                 state.currentSession.elapsedSeconds = state.currentSession.baseElapsedSeconds;
+                console.log("Timer stopped. Base seconds:", state.currentSession.baseElapsedSeconds);
+            }
+         };
+        const resetCurrentSession = () => { /* ... unchanged ... */
+             stopTimer();
+             state.currentSession = {
+                active: false, isPaused: false, startTime: null, applications: [],
+                completedCount: 0, timerInterval: null, elapsedSeconds: 0, baseElapsedSeconds: 0
+             };
+             applicationTableBody.innerHTML = '';
+         };
+
+        // --- Event Handlers ---
+        dailyGoalInput.addEventListener('change', async () => { /* ... unchanged ... */
+             const newGoal = parseInt(dailyGoalInput.value, 10);
+            if (newGoal > 0 && !isNaN(newGoal)) {
+                const previousGoal = state.dailyGoal;
+                state.dailyGoal = newGoal;
+                updateProgressBar();
+                try {
+                    const response = await fetch(`${API_BASE_URL}/goal`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ goal: newGoal })
+                    });
+                    if (!response.ok) throw new Error('Failed to update goal on server');
+                    const data = await response.json();
+                    state.dailyGoal = data.dailyGoal;
+                    console.log("Goal updated successfully on server");
+                } catch (error) {
+                    console.error("Error updating goal:", error);
+                    alert("Failed to update goal on the server. Reverting.");
+                    state.dailyGoal = previousGoal;
+                    dailyGoalInput.value = previousGoal;
+                    updateProgressBar();
+                }
+            } else {
+                dailyGoalInput.value = state.dailyGoal;
+                alert("Please enter a valid number greater than 0 for the daily goal.");
+            }
+        });
+
+        // UPDATED: Handle Start / Continue Logging
+        startLogButton.addEventListener('click', async () => {
+            if (state.currentSession.active) { alert("Session already active!"); return; }
+
+            const today = getTodayDateString();
+            let completedTodayCount = 0;
+            let elapsedTodaySeconds = 0;
+            let applicationsToday = []; // Array to hold fetched applications
+
+            // Check if there's an existing log for today to resume from
+            try {
+                const response = await fetch(`${API_BASE_URL}/session/${today}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.found) {
+                        console.log("Resuming session data:", data);
+                        completedTodayCount = data.completed_count;
+                        elapsedTodaySeconds = data.elapsed_seconds;
+                        applicationsToday = data.applications || []; // Get applications list
+                    }
+                } else if (response.status !== 404) {
+                    throw new Error(`HTTP error fetching session! status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error("Error checking for existing session:", error);
+                alert("Could not check for existing session data. Starting fresh.");
+            }
+
+            // Start the session
+            state.currentSession.active = true;
+            state.currentSession.isPaused = false;
+            // --- Populate applications from fetched data ---
+            state.currentSession.applications = applicationsToday.map(app => ({
+                 id: Date.now() + Math.random(), // Simple unique ID for rows
+                 jobName: app.jobName || '',
+                 company: app.company || '',
+                 resume: app.resume || '',
+                 done: true // Assume fetched apps were marked done previously
+            }));
+            state.currentSession.completedCount = completedTodayCount;
+            state.currentSession.baseElapsedSeconds = elapsedTodaySeconds;
+            state.currentSession.elapsedSeconds = elapsedTodaySeconds;
+            startTimer();
+            updateUI(); // This will call renderApplicationTable
+            updateProgressBar();
+        });
+
+        pauseResumeButton.addEventListener('click', () => { /* ... unchanged ... */
+             if (!state.currentSession.active) return;
+            state.currentSession.isPaused = !state.currentSession.isPaused;
+            if (state.currentSession.isPaused) { stopTimer(); console.log("Session Paused"); }
+            else { startTimer(); console.log("Session Resumed"); }
+            updateUI();
+        });
+
+        addRowButton.addEventListener('click', () => {
+            if (!state.currentSession.active || state.currentSession.isPaused) return;
+            const newId = Date.now() + Math.random(); // Ensure unique ID
+            state.currentSession.applications.push({
+                id: newId, jobName: '', company: '', resume: '', done: false // New rows start as not done
+            });
+            renderApplicationTable();
+        });
+
+        applicationTableBody.addEventListener('change', (e) => { /* ... unchanged ... */
+            if (state.currentSession.isPaused) return; // Prevent changes when paused
+            if (e.target.classList.contains('table-input')) {
+                const row = e.target.closest('tr');
+                const appId = parseFloat(row.dataset.id); // Use parseFloat for potential float IDs
+                const field = e.target.dataset.field;
+                const appIndex = state.currentSession.applications.findIndex(app => app.id === appId);
+                if (appIndex !== -1 && field) {
+                    state.currentSession.applications[appIndex][field] = e.target.value;
+                }
+            }
+        });
+
+        applicationTableBody.addEventListener('click', (e) => { /* Mark as Done */
+            if (state.currentSession.isPaused) return;
+            const doneButton = e.target.closest('.done-button');
+            if (doneButton && state.currentSession.active) {
+                const row = doneButton.closest('tr');
+                const appId = parseFloat(row.dataset.id); // Use parseFloat
+                const appIndex = state.currentSession.applications.findIndex(app => app.id === appId);
+                if (appIndex !== -1) {
+                    const app = state.currentSession.applications[appIndex];
+                    const wasDone = app.done;
+                    app.done = !app.done; // Toggle done status
+
+                    // --- IMPORTANT: Recalculate completedCount based on ALL 'done' apps ---
+                    state.currentSession.completedCount = state.currentSession.applications.filter(a => a.done).length;
+
+                    // Update UI for this row
+                    doneButton.innerHTML = app.done ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="far fa-circle text-gray-400"></i>';
+                    doneButton.classList.toggle('text-green-500', app.done);
+                    row.classList.toggle('bg-green-50', app.done);
+
+                    updateProgressBar(); // Update progress bar with new total count
+                }
+            }
+        });
+
+        // UPDATED: Handle Finish Day - Send applications list
+        finishDayButton.addEventListener('click', async () => {
+            if (!state.currentSession.active) return;
+            stopTimer();
+
+            // Send ALL applications currently in the session state
+            const applicationsToSend = state.currentSession.applications.map(app => ({
+                 jobName: app.jobName,
+                 company: app.company,
+                 resume: app.resume
+            }));
+
+            const payload = {
+                // Send the count of ONLY the 'done' applications
+                completedCount: state.currentSession.applications.filter(a => a.done).length,
+                elapsedSeconds: state.currentSession.elapsedSeconds,
+                applications: applicationsToSend // Send the list of all applications in session
+            };
+
+            try {
+                console.log("Sending finish day request to backend with payload:", payload);
+                const response = await fetch(`${API_BASE_URL}/finish_day`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                     const errorData = await response.json().catch(() => ({}));
+                     throw new Error(`Failed to finish day: ${errorData.error || response.statusText} (Status: ${response.status})`);
+                }
+                const data = await response.json();
+                console.log("Finish day response:", data);
+
+                state.fetchedTotalStreak = data.totalStreak;
+                state.fetchedGoalStreak = data.goalStreak;
+                state.fetchedTotalDays = data.totalDaysLogged;
+                state.fetchedLastCompleted = data.lastCompletedDate;
+                state.fetchedLastStatus = data.lastLogStatus;
+
+                alert(data.message || `Day log updated successfully!`);
+
+                resetCurrentSession();
+                updateUI();
+                state.calendarDate = new Date();
+                await renderCalendar();
+
+            } catch (error) {
+                console.error("Error finishing day:", error);
+                alert(`Error logging day: ${error.message}. Please try again.`);
+                 state.currentSession.isPaused = true;
+                 updateUI();
+            }
+        });
+
+        resetButton.addEventListener('click', () => { /* ... unchanged ... */
+             showModal(
+                'Reset All Server Data',
+                'Are you sure you want to erase ALL your progress, streak, and logged days from the server? This action cannot be undone.',
+                async () => {
+                    console.log("Sending reset request to backend...");
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/reset`, { method: 'DELETE' });
+                        if (!response.ok) {
+                             const errorData = await response.json().catch(() => ({}));
+                             throw new Error(`Failed to reset data: ${errorData.error || response.statusText}`);
+                        }
+                        console.log("Reset successful on server.");
+                        await loadState();
+                        resetCurrentSession();
+                        hideModal();
+                        alert("All data has been reset on the server.");
+                        // Hide past log display after reset
+                        pastLogCardContainer.classList.add('hidden');
+                        logSeparator.classList.add('hidden');
+                    } catch (error) {
+                        console.error("Error resetting data:", error);
+                        hideModal();
+                        alert(`Failed to reset data on the server: ${error.message}`);
+                    }
+                }
+            );
+        });
+        modalCancel.addEventListener('click', hideModal);
+        modalConfirm.addEventListener('click', () => { if (typeof confirmCallback === 'function') confirmCallback(); });
+
+        // --- Rendering Functions ---
+        // UPDATED: Render application table based on state.currentSession.applications
+        const renderApplicationTable = () => {
+            applicationTableBody.innerHTML = ''; // Clear existing rows
+            if (!state.currentSession.active) return;
+
+            state.currentSession.applications.forEach(app => {
+                const row = document.createElement('tr');
+                row.dataset.id = app.id; // Use local unique ID for dataset
+                row.classList.toggle('bg-green-50', app.done);
+
+                row.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap">
+                        <input type="text" data-field="jobName" value="${app.jobName || ''}" class="table-input" placeholder="e.g., Software Engineer" ${state.currentSession.isPaused ? 'disabled' : ''}>
+                    </td>
+                    <td class="px-3 py-2 whitespace-nowrap">
+                        <input type="text" data-field="company" value="${app.company || ''}" class="table-input" placeholder="e.g., Google" ${state.currentSession.isPaused ? 'disabled' : ''}>
+                    </td>
+                    <td class="px-3 py-2 whitespace-nowrap">
+                        <input type="text" data-field="resume" value="${app.resume || ''}" class="table-input" placeholder="e.g., v3_final.pdf" ${state.currentSession.isPaused ? 'disabled' : ''}>
+                    </td>
+                    <td class="px-3 py-2 text-center">
+                        <button class="done-button btn-icon ${app.done ? 'text-green-500' : 'text-gray-400'}" ${state.currentSession.isPaused ? 'disabled' : ''}>
+                            ${app.done ? '<i class="fas fa-check-circle"></i>' : '<i class="far fa-circle"></i>'}
+                        </button>
+                    </td>
+                `;
+                applicationTableBody.appendChild(row);
+            });
+        };
+
+        async function renderCalendar() { /* ... unchanged rendering logic ... */
+             calendarGrid.innerHTML = '';
+            const year = state.calendarDate.getFullYear();
+            const month = state.calendarDate.getMonth();
+            const apiMonth = month + 1;
+            calendarMonthYear.textContent = `${state.calendarDate.toLocaleString('default', { month: 'long' })} ${year}`;
+
+            let monthLoggedDaysData = [];
+            try {
+                const response = await fetch(`${API_BASE_URL}/calendar_data?month=${apiMonth}&year=${year}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                monthLoggedDaysData = data.loggedDaysStatus || [];
+                console.log("Fetched calendar data:", monthLoggedDaysData);
+            } catch (error) {
+                console.error("Error fetching calendar data:", error);
+                calendarGrid.innerHTML = '<div class="col-span-7 text-center text-red-500">Error loading calendar data.</div>';
+                return;
+            }
+
+            const firstDayOfMonth = new Date(year, month, 1);
+            const lastDayOfMonth = new Date(year, month + 1, 0);
+            const daysInMonth = lastDayOfMonth.getDate();
+            const startDayOfWeek = firstDayOfMonth.getDay();
+            const today = new Date();
+            const todayString = today.toISOString().split('T')[0];
+
+            // Days from previous month
+            const lastDayOfPrevMonth = new Date(year, month, 0).getDate();
+            for (let i = 0; i < startDayOfWeek; i++) {
+                const day = lastDayOfPrevMonth - startDayOfWeek + 1 + i;
+                const cell = document.createElement('div');
+                cell.classList.add('calendar-day', 'other-month');
+                cell.textContent = day;
+                calendarGrid.appendChild(cell);
+             }
+
+            // Days of the current month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('div');
+                cell.className = 'calendar-day'; // Reset classes
+                cell.textContent = day;
+                const currentDateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                const logData = monthLoggedDaysData.find(log => log.date === currentDateString);
+                const logStatus = logData ? logData.status : null;
+                const isToday = currentDateString === todayString;
+
+                // Add date string as data attribute for click listener
+                cell.dataset.date = currentDateString;
+
+                if (logStatus === 'complete') cell.classList.add('logged');
+                else if (logStatus === 'incomplete') cell.classList.add('incomplete');
+
+                if (isToday) cell.classList.add('today');
+
+                 // Make non-logged, non-other-month days NOT clickable
+                 if (!logStatus && !cell.classList.contains('other-month')) {
+                     cell.classList.remove('cursor-pointer', 'hover:bg-gray-100');
+                 } else if (cell.classList.contains('other-month')) {
+                      cell.classList.remove('cursor-pointer', 'hover:bg-gray-100');
+                 }
+
+
+                calendarGrid.appendChild(cell);
+            }
+
+            // Days from next month
+            const totalCells = startDayOfWeek + daysInMonth;
+            const remainingCells = (7 - (totalCells % 7)) % 7;
+            for (let i = 1; i <= remainingCells; i++) {
+                 const cell = document.createElement('div');
+                 cell.classList.add('calendar-day', 'other-month');
+                 cell.textContent = i;
+                 calendarGrid.appendChild(cell);
+             }
+        }
+
+        // UPDATED: Function to display past logs in a styled table
+        function displayPastLogs(logData) {
+            // Use the container for visibility control
+            pastLogCardContainer.innerHTML = ''; // Clear previous content
+            pastLogCardContainer.classList.remove('hidden'); // Make card container visible
+            logSeparator.classList.remove('hidden'); // Show the separator line
+
+            const dateStr = logData?.log_date || 'selected date';
+            const status = logData?.status || 'N/A';
+            const applications = logData?.applications || [];
+
+            // Determine status text and class
+            let statusText = status === 'N/A' ? status : status.charAt(0).toUpperCase() + status.slice(1); // Capitalize if not N/A
+            let statusClass = 'status-na'; // Default class
+            if (status === 'complete') {
+                statusClass = 'status-complete';
+            } else if (status === 'incomplete') {
+                statusClass = 'status-incomplete';
+            }
+
+            // Build the heading with styled status
+            let tableHTML = `
+                <div id="past-log-display"> <h3 class="text-xl font-semibold mb-4 text-gray-900"> Logs for ${dateStr}
+                        <span class="text-lg font-medium ml-2"> (Status: <span class="${statusClass}">${statusText}</span>)</span>
+                    </h3>
+            `;
+
+            if (applications.length === 0) {
+                tableHTML += `<p class="text-base text-gray-600 italic mt-4 text-center">No applications logged for this day.</p>`; // Styled 'no logs' message
+            } else {
+                tableHTML += `
+                    <div class="overflow-x-auto rounded-lg shadow-md border border-gray-300"> <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100"> <tr>
+                                    <th scope="col" class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Job/Position</th> <th scope="col" class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Company</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Resume Used</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                `;
+
+                applications.forEach((app, index) => {
+                    // Apply alternating row color using JS logic
+                    const rowClass = index % 2 === 0 ? '' : 'bg-gray-50'; // Tailwind class for light gray background
+                    tableHTML += `
+                        <tr class="${rowClass}">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${sanitize(app.jobName)}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${sanitize(app.company)}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${sanitize(app.resume)}</td>
+                        </tr>
+                    `;
+                });
+                tableHTML += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            tableHTML += `</div>`; // Close inner div
+            pastLogCardContainer.innerHTML = tableHTML; // Set content of the card container
+        }
+
+        // --- NEW: Event Listener for Calendar Clicks ---
+        calendarGrid.addEventListener('click', async (e) => {
+             // Ensure logging session is not active before allowing view
+            if (state.currentSession.active) {
+                 alert("Please finish or pause the current logging session before viewing past logs.");
+                 return;
+            }
+
+            const clickedCell = e.target.closest('.calendar-day');
+            // Check if it's a valid day cell within the current month and has a date
+            if (clickedCell && !clickedCell.classList.contains('other-month') && clickedCell.dataset.date) {
+                const dateStr = clickedCell.dataset.date;
+                 // Check if the day was actually logged (has red or blue circle)
+                 if (!clickedCell.classList.contains('logged') && !clickedCell.classList.contains('incomplete')) {
+                     console.log(`Day ${dateStr} was not logged. Clearing display.`);
+                     pastLogCardContainer.innerHTML = ''; // Clear card container
+                     pastLogCardContainer.classList.add('hidden'); // Hide card container
+                     logSeparator.classList.add('hidden'); // Hide separator
+                     return; // Don't fetch if not logged
+                 }
+
+                console.log(`Fetching logs for date: ${dateStr}`);
+                try {
+                    const response = await fetch(`${API_BASE_URL}/logs/${dateStr}`);
+                    if (!response.ok) {
+                         if(response.status === 404) {
+                              console.warn(`No log details found for ${dateStr} on backend.`);
+                              displayPastLogs({ log_date: dateStr, applications: [] }); // Show empty state
+                         } else {
+                             throw new Error(`HTTP error fetching logs! status: ${response.status}`);
+                         }
+                    } else {
+                         const logDetails = await response.json();
+                         console.log("Received log details:", logDetails);
+                         displayPastLogs(logDetails); // Display the fetched logs
+                    }
+                } catch (error) {
+                    console.error("Error fetching past logs:", error);
+                    pastLogCardContainer.innerHTML = `<div id="past-log-display"><p class="text-red-500">Error fetching logs for ${dateStr}.</p></div>`; // Show error inside card
+                    pastLogCardContainer.classList.remove('hidden');
+                    logSeparator.classList.remove('hidden'); // Ensure separator is visible even on error display
+                }
+            }
+        });
+
+
+        prevMonthButton.addEventListener('click', async () => { /* ... unchanged ... */
+            state.calendarDate.setMonth(state.calendarDate.getMonth() - 1);
+            pastLogCardContainer.classList.add('hidden'); // Hide past logs when changing month
+            logSeparator.classList.add('hidden'); // Hide separator
+            await renderCalendar();
+         });
+        nextMonthButton.addEventListener('click', async () => { /* ... unchanged ... */
+            state.calendarDate.setMonth(state.calendarDate.getMonth() + 1);
+            pastLogCardContainer.classList.add('hidden'); // Hide past logs when changing month
+            logSeparator.classList.add('hidden'); // Hide separator
+            await renderCalendar();
+         });
+
+        // --- Initialization ---
+        (async () => {
+            await loadState();
+        })();
+
+    </script>
+
+</body>
+</html>
