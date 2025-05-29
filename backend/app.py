@@ -1,8 +1,8 @@
 # backend/app.py
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from database import db, init_app
 # Import ApplicationLog model as well
@@ -104,7 +104,7 @@ def finish_day():
         "applications": [ { "jobName": "...", "company": "...", "resume": "..." }, ... ]
     }
     """
-    today = date.today()
+    today = get_eastern_today()
     data = request.get_json()
 
     # Validate incoming data
@@ -239,6 +239,109 @@ def reset_data():
         app.logger.error(f"Failed to reset data: {e}")
         return jsonify({"error": "Failed to reset data", "details": str(e)}), 500
 
+@app.route('/api/export_logs', methods=['GET'])
+def export_logs():
+    """
+    Export all logs (DailyLog + ApplicationLog) as CSV or JSON.
+    Query param: ?format=csv or ?format=json (default: json)
+    """
+    format = request.args.get('format', 'json').lower()
+    # Fetch all logs, order by date
+    logs = DailyLog.query.order_by(DailyLog.log_date).all()
+    export_data = []
+    for log in logs:
+        applications = [app.to_dict() for app in log.applications]
+        export_data.append({
+            'log_date': log.log_date.isoformat(),
+            'status': log.status,
+            'completed_count': log.completed_count,
+            'elapsed_seconds': log.elapsed_seconds,
+            'applications': applications
+        })
+
+    if format == 'csv':
+        # Flatten for CSV: one row per application, include day info
+        import csv
+        from io import StringIO
+        si = StringIO()
+        writer = csv.writer(si)
+        # Header
+        writer.writerow([
+            'log_date', 'status', 'completed_count', 'elapsed_seconds',
+            'jobName', 'company', 'resume'
+        ])
+        for log in export_data:
+            if log['applications']:
+                for app in log['applications']:
+                    writer.writerow([
+                        log['log_date'], log['status'], log['completed_count'], log['elapsed_seconds'],
+                        app.get('jobName', ''), app.get('company', ''), app.get('resume', '')
+                    ])
+            else:
+                # No applications for this day
+                writer.writerow([
+                    log['log_date'], log['status'], log['completed_count'], log['elapsed_seconds'], '', '', ''
+                ])
+        output = si.getvalue()
+        return Response(
+            output,
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': 'attachment; filename=jobtracker_logs.csv'
+            }
+        )
+    else:
+        # Default: JSON
+        return jsonify(export_data), 200
+
+@app.route('/api/server_time', methods=['GET'])
+def get_server_time():
+    # Use US Eastern Time
+    try:
+        # Python 3.9+: use zoneinfo
+        eastern = ZoneInfo('America/New_York')
+        now = datetime.now(eastern)
+        tz_abbr = now.tzname()
+    except Exception:
+        # Fallback for pytz
+        import pytz
+        eastern = pytz.timezone('America/New_York')
+        now = datetime.now(eastern)
+        tz_abbr = now.tzname()
+    return jsonify({
+        'iso': now.isoformat(),
+        'date': now.strftime('%Y-%m-%d'),
+        'time': now.strftime('%H:%M:%S'),
+        'datetime': now.strftime('%A, %B %d, %Y %H:%M:%S'),
+        'tz': tz_abbr
+    })
+
+@app.route('/api/debug_streaks', methods=['GET'])
+def debug_streaks():
+    from models import DailyLog, get_current_status
+    from datetime import date
+    logs = DailyLog.query.order_by(DailyLog.log_date).all()
+    log_list = [
+        {"log_date": log.log_date.isoformat(), "status": log.status} for log in logs
+    ]
+    streaks = get_current_status()
+    return {
+        "backend_today": date.today().isoformat(),
+        "logs": log_list,
+        "streaks": streaks
+    }
+
+# --- Helper: Always get today in US Eastern Time ---
+def get_eastern_today():
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        eastern = ZoneInfo('America/New_York')
+        return datetime.now(eastern).date()
+    except Exception:
+        import pytz
+        eastern = pytz.timezone('America/New_York')
+        return datetime.now(eastern).date()
 
 # --- Main Execution ---
 if __name__ == '__main__':

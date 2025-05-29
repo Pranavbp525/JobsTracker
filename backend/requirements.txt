@@ -3,3 +3,4 @@ Flask-SQLAlchemy
 psycopg2-binary  # Use this for easier install, or 'psycopg2' if you have build tools
 python-dotenv
 Flask-CORS
+pytz

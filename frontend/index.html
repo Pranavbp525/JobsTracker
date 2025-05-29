@@ -20,12 +20,69 @@
         .btn-icon { @apply p-2 rounded-full text-gray-500 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500; }
         .btn:disabled { @apply bg-gray-400 cursor-not-allowed hover:bg-gray-400 opacity-70; }
 
-        .calendar-day { @apply w-9 h-9 flex items-center justify-center border border-gray-300 rounded-md text-sm cursor-pointer hover:bg-gray-100; }
-        .calendar-day.logged { border-radius: 50% !important; @apply bg-blue-500 text-white font-bold border-transparent; }
-        .calendar-day.incomplete { border-radius: 50% !important; @apply bg-red-500 text-white font-bold border-transparent; }
-        .calendar-day.today { @apply ring-2 ring-indigo-500 ring-offset-1; }
-        .calendar-day.logged.today { background-color: #3b82f6 !important; border-radius: 50% !important; @apply text-white font-bold border-transparent ring-2 ring-indigo-500 ring-offset-1; }
-        .calendar-day.incomplete.today { background-color: #ef4444 !important; border-radius: 50% !important; @apply text-white font-bold border-transparent ring-2 ring-indigo-500 ring-offset-1; }
+        .calendar-day {
+            width: 2.5rem !important;
+            height: 2.5rem !important;
+            min-width: 2.5rem !important;
+            min-height: 2.5rem !important;
+            max-width: 2.5rem !important;
+            max-height: 2.5rem !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50% !important;
+            font-size: 1rem;
+            line-height: 1;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+        .calendar-day.logged {
+            background-color: #3b82f6 !important; /* Tailwind blue-500 */
+            color: #fff !important;
+            font-weight: bold;
+            border-radius: 50% !important;
+            border: none !important;
+        }
+        .calendar-day.incomplete {
+            background-color: #f59e42 !important; /* Tailwind orange-400 */
+            color: #fff !important;
+            font-weight: bold;
+            border-radius: 50% !important;
+            border: none !important;
+            width: 2.5rem !important;
+            height: 2.5rem !important;
+            min-width: 2.5rem !important;
+            min-height: 2.5rem !important;
+            max-width: 2.5rem !important;
+            max-height: 2.5rem !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            line-height: 1;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+        .calendar-day.today {
+            box-shadow: 0 0 0 3px #6366f1 !important;
+            border-radius: 50% !important;
+        }
+        .calendar-day.logged.today {
+            background-color: #3b82f6 !important;
+            color: #fff !important;
+            font-weight: bold;
+            border-radius: 50% !important;
+            border: none !important;
+            box-shadow: 0 0 0 3px #6366f1 !important; /* Tailwind indigo-500 ring */
+        }
+        .calendar-day.incomplete.today {
+            background-color: #f59e42 !important;
+            color: #fff !important;
+            font-weight: bold;
+            border-radius: 50% !important;
+            border: none !important;
+            box-shadow: 0 0 0 3px #6366f1 !important;
+        }
         .calendar-day.other-month { @apply text-gray-400 bg-gray-50 cursor-default hover:bg-gray-50; }
         .table-input { @apply block w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm; }
         .modal { @apply fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50; }
@@ -60,7 +117,22 @@
 <body class="p-4 md:p-8">
 
     <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-lg">
+        <div class="flex justify-end mb-2">
+            <span id="server-clock" class="text-sm font-mono text-gray-600 bg-gray-100 px-3 py-1 rounded"></span>
+        </div>
         <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Job Application Tracker</h1>
+
+        <!-- Export Logs Controls -->
+        <div class="flex flex-row justify-end items-center mb-4 gap-2">
+            <label for="export-format" class="text-sm font-medium text-gray-700 mr-2">Export as:</label>
+            <select id="export-format" class="px-2 py-1 border border-gray-300 rounded-md text-sm">
+                <option value="csv">CSV</option>
+                <option value="json">JSON</option>
+            </select>
+            <button id="export-logs-button" class="btn btn-secondary">
+                <i class="fas fa-download mr-2"></i>Export Logs
+            </button>
+        </div>
 
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200 gap-4">
             <div class="mb-4 md:mb-0">
@@ -197,6 +269,8 @@
         const modalMessage = document.getElementById('modal-message');
         const modalCancel = document.getElementById('modal-cancel');
         const modalConfirm = document.getElementById('modal-confirm');
+        const exportLogsButton = document.getElementById('export-logs-button');
+        const exportFormatSelect = document.getElementById('export-format');
 
         // --- Frontend State Variables ---
         let state = {
@@ -212,7 +286,8 @@
         let confirmCallback = null;
 
         // --- Utility Functions ---
-        const getTodayDateString = () => new Date().toISOString().split('T')[0];
+        // Use server time for today string
+        const getTodayDateString = () => serverTodayString || (serverDateObj ? serverDateObj.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
         const formatTime = (totalSeconds) => { /* ... unchanged ... */
              const hours = Math.floor(totalSeconds / 3600);
              const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -238,8 +313,8 @@
 
 
         // --- Core Logic Functions ---
-        async function loadState() { /* ... unchanged ... */
-             console.log("Loading state from backend...");
+        async function loadState() {
+            console.log("Loading state from backend...");
             try {
                 const response = await fetch(`${API_BASE_URL}/state`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -250,12 +325,24 @@
                 state.fetchedTotalDays = data.totalDaysLogged;
                 state.fetchedLastCompleted = data.lastCompletedDate;
                 state.fetchedLastStatus = data.lastLogStatus;
-                console.log("State loaded from backend:", data);
+                // Check if there is a log for today
+                const today = getTodayDateString();
+                let foundToday = false;
+                try {
+                    const sessionResp = await fetch(`${API_BASE_URL}/session/${today}`);
+                    if (sessionResp.ok) {
+                        const sessionData = await sessionResp.json();
+                        foundToday = !!sessionData.found;
+                    }
+                } catch (e) { foundToday = false; }
+                state.isTodayLogged = foundToday;
+                console.log("State loaded from backend:", data, "isTodayLogged:", foundToday);
             } catch (error) {
                 console.error("Error loading state from backend:", error);
                 alert("Error loading data from server. Using default values.");
                 state.dailyGoal = 5; state.fetchedTotalStreak = 0; state.fetchedGoalStreak = 0;
                 state.fetchedTotalDays = 0; state.fetchedLastCompleted = null; state.fetchedLastStatus = null;
+                state.isTodayLogged = false;
             }
             dailyGoalInput.value = state.dailyGoal;
             updateStreakCounters();
@@ -265,7 +352,7 @@
             updateUI();
         }
 
-        const updateUI = () => { /* ... unchanged ... */
+        const updateUI = () => {
             dailyGoalInput.value = state.dailyGoal;
             dailyGoalInput.disabled = state.currentSession.active; // Disable goal change during session
 
@@ -273,57 +360,55 @@
             updateTotalDaysCounter();
 
             const today = getTodayDateString();
-            const isTodayLogged = state.fetchedLastCompleted === today;
+            // --- Check if there is a log for today ---
+            let isTodayLogged = false;
+            // We'll check this by making a synchronous request to /api/session/today (not ideal, but ensures correctness)
+            // Instead, let's store a flag in state after loadState or after finishing a day
+            if (typeof state.isTodayLogged === 'boolean') {
+                isTodayLogged = state.isTodayLogged;
+            } else {
+                // fallback to old logic if not set
+                isTodayLogged = state.fetchedLastCompleted === today;
+            }
 
             // --- Button Visibility and Text ---
             if (state.currentSession.active) {
-                // Session is active
-                startLogButton.classList.add('hidden'); // Hide Start button
+                startLogButton.classList.add('hidden');
                 pauseResumeButton.classList.remove('hidden');
-                finishDayButton.classList.remove('hidden'); // Finish always visible when active
+                finishDayButton.classList.remove('hidden');
                 timerSection.classList.remove('hidden');
                 loggingArea.classList.remove('hidden');
-
-                // Pause/Resume button state
                 if (state.currentSession.isPaused) {
                     pauseResumeButton.innerHTML = `<i class="fas fa-play mr-2"></i>Resume`;
                     pausedOverlay.classList.remove('hidden');
-                    // Disable inputs/buttons when paused
                     addRowButton.disabled = true;
                     applicationTableBody.querySelectorAll('input, button').forEach(el => el.disabled = true);
                 } else {
                     pauseResumeButton.innerHTML = `<i class="fas fa-pause mr-2"></i>Pause`;
                     pausedOverlay.classList.add('hidden');
-                    // Enable inputs/buttons when not paused
                     addRowButton.disabled = false;
-                     applicationTableBody.querySelectorAll('input, button').forEach(el => el.disabled = false);
+                    applicationTableBody.querySelectorAll('input, button').forEach(el => el.disabled = false);
                 }
-
             } else {
-                // Session is not active
-                startLogButton.classList.remove('hidden'); // Show Start/Resume button
+                startLogButton.classList.remove('hidden');
                 pauseResumeButton.classList.add('hidden');
                 finishDayButton.classList.add('hidden');
                 timerSection.classList.add('hidden');
                 loggingArea.classList.add('hidden');
-                pausedOverlay.classList.add('hidden'); // Ensure overlay is hidden
-
-                // Start button text depends on whether today was logged
+                pausedOverlay.classList.add('hidden');
                 if (isTodayLogged) {
                     startLogButton.innerHTML = `<i class="fas fa-redo mr-2"></i>Continue Logging`;
                 } else {
                     startLogButton.innerHTML = `<i class="fas fa-play mr-2"></i>Start Logging`;
                 }
             }
-
-            // General state updates
             if (state.currentSession.active) {
-                 renderApplicationTable(); // Render table based on local session applications
-                 timerEl.textContent = formatTime(state.currentSession.elapsedSeconds);
-                 updateProgressBar();
+                renderApplicationTable();
+                timerEl.textContent = formatTime(state.currentSession.elapsedSeconds);
+                updateProgressBar();
             } else {
-                 progressBarEl.style.width = `0%`;
-                 progressTextEl.textContent = `0% (0 / ${state.dailyGoal})`;
+                progressBarEl.style.width = `0%`;
+                progressTextEl.textContent = `0% (0 / ${state.dailyGoal})`;
             }
         };
         const updateStreakCounters = () => { /* ... unchanged ... */
@@ -398,25 +483,23 @@
             }
         });
 
-        // UPDATED: Handle Start / Continue Logging
+        // --- Modified Start/Continue Logging Handler ---
         startLogButton.addEventListener('click', async () => {
             if (state.currentSession.active) { alert("Session already active!"); return; }
-
             const today = getTodayDateString();
             let completedTodayCount = 0;
             let elapsedTodaySeconds = 0;
-            let applicationsToday = []; // Array to hold fetched applications
-
-            // Check if there's an existing log for today to resume from
+            let applicationsToday = [];
+            let foundToday = false;
             try {
                 const response = await fetch(`${API_BASE_URL}/session/${today}`);
                 if (response.ok) {
                     const data = await response.json();
                     if (data.found) {
-                        console.log("Resuming session data:", data);
+                        foundToday = true;
                         completedTodayCount = data.completed_count;
                         elapsedTodaySeconds = data.elapsed_seconds;
-                        applicationsToday = data.applications || []; // Get applications list
+                        applicationsToday = data.applications || [];
                     }
                 } else if (response.status !== 404) {
                     throw new Error(`HTTP error fetching session! status: ${response.status}`);
@@ -425,23 +508,30 @@
                 console.error("Error checking for existing session:", error);
                 alert("Could not check for existing session data. Starting fresh.");
             }
-
-            // Start the session
+            // Only allow continue if foundToday, else always start fresh
             state.currentSession.active = true;
             state.currentSession.isPaused = false;
-            // --- Populate applications from fetched data ---
-            state.currentSession.applications = applicationsToday.map(app => ({
-                 id: Date.now() + Math.random(), // Simple unique ID for rows
-                 jobName: app.jobName || '',
-                 company: app.company || '',
-                 resume: app.resume || '',
-                 done: true // Assume fetched apps were marked done previously
-            }));
-            state.currentSession.completedCount = completedTodayCount;
-            state.currentSession.baseElapsedSeconds = elapsedTodaySeconds;
-            state.currentSession.elapsedSeconds = elapsedTodaySeconds;
+            if (foundToday) {
+                state.currentSession.applications = applicationsToday.map(app => ({
+                    id: Date.now() + Math.random(),
+                    jobName: app.jobName || '',
+                    company: app.company || '',
+                    resume: app.resume || '',
+                    done: true
+                }));
+                state.currentSession.completedCount = completedTodayCount;
+                state.currentSession.baseElapsedSeconds = elapsedTodaySeconds;
+                state.currentSession.elapsedSeconds = elapsedTodaySeconds;
+            } else {
+                // Always start with empty session for today
+                state.currentSession.applications = [];
+                state.currentSession.completedCount = 0;
+                state.currentSession.baseElapsedSeconds = 0;
+                state.currentSession.elapsedSeconds = 0;
+            }
+            state.isTodayLogged = foundToday;
             startTimer();
-            updateUI(); // This will call renderApplicationTable
+            updateUI();
             updateProgressBar();
         });
 
@@ -616,33 +706,77 @@
             });
         };
 
-        async function renderCalendar() { /* ... unchanged rendering logic ... */
-             calendarGrid.innerHTML = '';
-            const year = state.calendarDate.getFullYear();
-            const month = state.calendarDate.getMonth();
+        // --- Server Clock ---
+        const serverClockEl = document.getElementById('server-clock');
+        let serverTime = null;
+        let lastFetchLocal = null;
+        let serverTz = '';
+        let serverDateObj = null; // <-- Store server date for calendar logic
+        let serverTodayString = null; // <-- Store server 'today' string (YYYY-MM-DD)
+        function displayServerClock() {
+            if (!serverTime) {
+                serverClockEl.textContent = 'Loading...';
+                return;
+            }
+            // Calculate elapsed seconds since last fetch
+            const now = new Date();
+            const elapsed = Math.floor((now - lastFetchLocal) / 1000);
+            const displayDate = new Date(serverTime.getTime() + elapsed * 1000);
+            // Format as: Friday, May 24, 2025 09:33:00 PM EDT
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+            const formatted = displayDate.toLocaleString('en-US', options);
+            serverClockEl.textContent = `${formatted} ${serverTz}`;
+        }
+        async function fetchServerClock() {
+            try {
+                serverClockEl.textContent = 'Loading...';
+                const resp = await fetch(`${API_BASE_URL.replace('/api','')}/api/server_time`);
+                if (!resp.ok) throw new Error('Failed to fetch server time');
+                const data = await resp.json();
+                serverTime = new Date(data.iso);
+                lastFetchLocal = new Date();
+                serverTz = data.tz;
+                serverDateObj = new Date(data.iso);
+                serverTodayString = data.date; // 'YYYY-MM-DD' from backend
+                displayServerClock();
+            } catch (e) {
+                serverClockEl.textContent = 'Time unavailable';
+            }
+        }
+        // --- Initialization ---
+        (async () => {
+            await fetchServerClock(); // Fetch server time first
+            await loadState();
+        })();
+        setInterval(displayServerClock, 1000); // update display every second
+        setInterval(fetchServerClock, 5 * 60 * 1000); // re-sync every 5 minutes
+        // --- Render Calendar: use serverDateObj for month/year/today ---
+        async function renderCalendar() {
+            calendarGrid.innerHTML = '';
+            // Use state.calendarDate for the displayed month/year
+            const refDate = state.calendarDate || (serverDateObj || new Date());
+            const year = refDate.getFullYear();
+            const month = refDate.getMonth();
             const apiMonth = month + 1;
-            calendarMonthYear.textContent = `${state.calendarDate.toLocaleString('default', { month: 'long' })} ${year}`;
-
+            calendarMonthYear.textContent = `${refDate.toLocaleString('default', { month: 'long' })} ${year}`;
             let monthLoggedDaysData = [];
             try {
                 const response = await fetch(`${API_BASE_URL}/calendar_data?month=${apiMonth}&year=${year}`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
                 monthLoggedDaysData = data.loggedDaysStatus || [];
-                console.log("Fetched calendar data:", monthLoggedDaysData);
+                console.log('Fetched calendar data:', monthLoggedDaysData);
             } catch (error) {
-                console.error("Error fetching calendar data:", error);
+                console.error('Error fetching calendar data:', error);
                 calendarGrid.innerHTML = '<div class="col-span-7 text-center text-red-500">Error loading calendar data.</div>';
                 return;
             }
-
             const firstDayOfMonth = new Date(year, month, 1);
             const lastDayOfMonth = new Date(year, month + 1, 0);
             const daysInMonth = lastDayOfMonth.getDate();
             const startDayOfWeek = firstDayOfMonth.getDay();
-            const today = new Date();
-            const todayString = today.toISOString().split('T')[0];
-
+            // Use server's today for highlight
+            const todayString = getTodayDateString();
             // Days from previous month
             const lastDayOfPrevMonth = new Date(year, month, 0).getDate();
             for (let i = 0; i < startDayOfWeek; i++) {
@@ -651,47 +785,37 @@
                 cell.classList.add('calendar-day', 'other-month');
                 cell.textContent = day;
                 calendarGrid.appendChild(cell);
-             }
-
+            }
             // Days of the current month
             for (let day = 1; day <= daysInMonth; day++) {
                 const cell = document.createElement('div');
                 cell.className = 'calendar-day'; // Reset classes
                 cell.textContent = day;
                 const currentDateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
                 const logData = monthLoggedDaysData.find(log => log.date === currentDateString);
                 const logStatus = logData ? logData.status : null;
                 const isToday = currentDateString === todayString;
-
-                // Add date string as data attribute for click listener
                 cell.dataset.date = currentDateString;
-
+                // --- Always add both classes if needed ---
                 if (logStatus === 'complete') cell.classList.add('logged');
-                else if (logStatus === 'incomplete') cell.classList.add('incomplete');
-
+                if (logStatus === 'incomplete') cell.classList.add('incomplete');
                 if (isToday) cell.classList.add('today');
-
-                 // Make non-logged, non-other-month days NOT clickable
-                 if (!logStatus && !cell.classList.contains('other-month')) {
-                     cell.classList.remove('cursor-pointer', 'hover:bg-gray-100');
-                 } else if (cell.classList.contains('other-month')) {
-                      cell.classList.remove('cursor-pointer', 'hover:bg-gray-100');
-                 }
-
-
+                if (!logStatus && !cell.classList.contains('other-month')) {
+                    cell.classList.remove('cursor-pointer', 'hover:bg-gray-100');
+                } else if (cell.classList.contains('other-month')) {
+                    cell.classList.remove('cursor-pointer', 'hover:bg-gray-100');
+                }
                 calendarGrid.appendChild(cell);
             }
-
             // Days from next month
             const totalCells = startDayOfWeek + daysInMonth;
             const remainingCells = (7 - (totalCells % 7)) % 7;
             for (let i = 1; i <= remainingCells; i++) {
-                 const cell = document.createElement('div');
-                 cell.classList.add('calendar-day', 'other-month');
-                 cell.textContent = i;
-                 calendarGrid.appendChild(cell);
-             }
+                const cell = document.createElement('div');
+                cell.classList.add('calendar-day', 'other-month');
+                cell.textContent = i;
+                calendarGrid.appendChild(cell);
+            }
         }
 
         // UPDATED: Function to display past logs in a styled table
@@ -814,10 +938,40 @@
             await renderCalendar();
          });
 
-        // --- Initialization ---
-        (async () => {
-            await loadState();
-        })();
+        // --- Export Logs Handler ---
+        exportLogsButton.addEventListener('click', async () => {
+            const format = exportFormatSelect.value;
+            const url = `${API_BASE_URL}/export_logs?format=${format}`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to export logs');
+                if (format === 'csv') {
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = 'jobtracker_logs.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(downloadUrl);
+                } else {
+                    // JSON
+                    const data = await response.json();
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = 'jobtracker_logs.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(downloadUrl);
+                }
+            } catch (error) {
+                alert('Failed to export logs: ' + error.message);
+            }
+        });
 
     </script>
 

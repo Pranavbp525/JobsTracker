@@ -73,57 +73,43 @@ def get_settings():
     return settings
 
 def get_current_status():
-    """ Calculates streaks, total days, last log date/status (unchanged). """
-    today = date.today()
-    logs = DailyLog.query.order_by(desc(DailyLog.log_date)).all()
-
+    """ Calculates streaks, total days, last log date/status (fixed logic, always uses US Eastern Time for today). """
+    from datetime import datetime, timedelta
+    try:
+        from zoneinfo import ZoneInfo
+        eastern = ZoneInfo('America/New_York')
+        today = datetime.now(eastern).date()
+    except Exception:
+        import pytz
+        eastern = pytz.timezone('America/New_York')
+        today = datetime.now(eastern).date()
+    logs = DailyLog.query.order_by(DailyLog.log_date).all()  # ASC order
+    log_map = {log.log_date: log.status for log in logs}
     if not logs:
         return {"totalStreak": 0, "goalStreak": 0, "totalDaysLogged": 0, "lastCompletedDate": None, "lastLogStatus": None}
-
-    last_log = logs[0]
-    total_days = len(logs)
+    last_log = logs[-1]
     last_log_date = last_log.log_date
     last_log_status = last_log.status
-
-    total_streak = 0
+    total_days = len(logs)
+    # --- Calculate goal streak ---
     goal_streak = 0
-    expected_date = today
-
-    for log in logs:
-        if log.log_date == expected_date:
-            total_streak += 1
-            if log.status == 'complete':
-                goal_streak += 1
-            else:
-                 # If today is incomplete, goal_streak is 0 *for today*
-                 # If yesterday was incomplete, goal_streak remains 0
-                 # Only consecutive 'complete' days count for goal_streak
-                 if expected_date != today: # Don't break goal streak based on incomplete *today*
-                    goal_streak = 0 # Break goal streak if a *past* day was incomplete
-
-            expected_date -= timedelta(days=1)
-        else:
-            # Gap detected, stop counting both streaks
-             # Check if the gap is just one day and yesterday was incomplete
-            if log.log_date == expected_date and log.status != 'complete':
-                 goal_streak = 0 # Yesterday was incomplete, goal streak is 0
-                 total_streak += 1 # Still count yesterday for total streak
-                 expected_date -= timedelta(days=1)
-                 continue # Continue checking for total streak
-            else:
-                 break # A real gap or a completed day out of sequence
-
-    # Adjust if the loop finished without checking today/yesterday properly
-    if last_log_date != today:
-        yesterday = today - timedelta(days=1)
-        if last_log_date != yesterday:
-            total_streak = 0
-            goal_streak = 0
-        elif last_log.status != 'complete': # Last log was yesterday but incomplete
-             goal_streak = 0
-
+    streak_date = today
+    while True:
+        status = log_map.get(streak_date)
+        if status != 'complete':
+            break
+        goal_streak += 1
+        streak_date -= timedelta(days=1)
+    # --- Calculate total streak ---
+    total_streak = 0
+    streak_date = today
+    while True:
+        status = log_map.get(streak_date)
+        if status is None:
+            break
+        total_streak += 1
+        streak_date -= timedelta(days=1)
     last_completed_iso = last_log_date.isoformat() if last_log_date else None
-
     return {
         "totalStreak": total_streak,
         "goalStreak": goal_streak,
