@@ -196,6 +196,14 @@
             </button>
         </div>
 
+        <!-- Goal change history (from /api/goal_history) -->
+        <details id="goal-history-details" class="mb-4 text-sm text-gray-600 hidden">
+            <summary class="cursor-pointer select-none font-medium hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">
+                <i class="fas fa-clock-rotate-left mr-1" aria-hidden="true"></i>Goal change history
+            </summary>
+            <ul id="goal-history-list" class="mt-2 ml-1 space-y-1"></ul>
+        </details>
+
         <!-- Stats summary -->
         <section aria-label="Your progress" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200 flex flex-col items-start col-span-2 md:col-span-1">
@@ -214,10 +222,37 @@
                     <i class="fas fa-bullseye text-green-500 text-2xl" aria-hidden="true"></i><span id="goal-streak-counter">0</span>
                 </span>
                 <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide mt-1">Goal Streak (days)</span>
+                <!-- Streak milestone badge + next-milestone hint (from /api/state) -->
+                <span id="milestone-badge" class="hidden mt-2 inline-flex items-center justify-center gap-1 mx-auto px-2 py-0.5 rounded-full text-[0.7rem] font-bold bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                    <i class="fas fa-medal" aria-hidden="true"></i><span id="milestone-badge-text"></span>
+                </span>
+                <span id="next-milestone-hint" class="hidden mt-1 text-[0.7rem] text-gray-500"></span>
             </div>
             <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200 text-center flex flex-col justify-center">
                 <span class="text-3xl font-extrabold text-gray-900 dark:text-white" id="total-days-logged">0</span>
                 <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide mt-1">Total Days Logged</span>
+            </div>
+        </section>
+
+        <!-- Analytics panel (from /api/analytics) -->
+        <section aria-labelledby="analytics-heading" class="mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h2 id="analytics-heading" class="text-xl font-semibold text-gray-800">
+                    <i class="fas fa-chart-line mr-2 text-indigo-500" aria-hidden="true"></i>Analytics
+                </h2>
+                <button id="analytics-toggle" class="btn-icon" type="button" aria-expanded="true" aria-controls="analytics-body" title="Toggle analytics">
+                    <i class="fas fa-chevron-up" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div id="analytics-body">
+                <div id="analytics-cards" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+                <div id="analytics-weekday-wrap" class="mt-4 hidden">
+                    <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">By Weekday</h3>
+                    <div id="analytics-weekday" class="space-y-1.5"></div>
+                </div>
+                <p id="analytics-empty" class="hidden text-sm text-gray-500 italic text-center py-4">
+                    <i class="fas fa-chart-simple mr-1" aria-hidden="true"></i>No data yet. Finish a day to see your analytics.
+                </p>
             </div>
         </section>
 
@@ -276,6 +311,13 @@
                 <button id="add-row-button" class="btn btn-secondary" type="button">
                     <i class="fas fa-plus mr-2" aria-hidden="true"></i>Add Application
                 </button>
+            </div>
+            <!-- Optional per-day note (sent to /finish_day as `notes`) -->
+            <div class="mt-4">
+                <label for="session-notes" class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-note-sticky mr-1 text-gray-400" aria-hidden="true"></i>Notes for today (optional)
+                </label>
+                <textarea id="session-notes" rows="3" class="table-input" placeholder="e.g., Focused on backend roles; followed up with a recruiter."></textarea>
             </div>
         </div>
 
@@ -359,12 +401,26 @@
         const themeToggle = document.getElementById('theme-toggle');
         const toastRegion = document.getElementById('toast-region');
         const srLive = document.getElementById('sr-live');
+        // New feature elements
+        const milestoneBadge = document.getElementById('milestone-badge');
+        const milestoneBadgeText = document.getElementById('milestone-badge-text');
+        const nextMilestoneHint = document.getElementById('next-milestone-hint');
+        const sessionNotes = document.getElementById('session-notes');
+        const analyticsCards = document.getElementById('analytics-cards');
+        const analyticsWeekdayWrap = document.getElementById('analytics-weekday-wrap');
+        const analyticsWeekday = document.getElementById('analytics-weekday');
+        const analyticsEmpty = document.getElementById('analytics-empty');
+        const analyticsBody = document.getElementById('analytics-body');
+        const analyticsToggle = document.getElementById('analytics-toggle');
+        const goalHistoryDetails = document.getElementById('goal-history-details');
+        const goalHistoryList = document.getElementById('goal-history-list');
 
         // --- Frontend State Variables ---
         let state = {
             dailyGoal: 5,
             fetchedTotalStreak: 0, fetchedGoalStreak: 0, fetchedTotalDays: 0,
             fetchedLastCompleted: null, fetchedLastStatus: null,
+            fetchedCurrentMilestone: null, fetchedNextMilestone: null,
             currentSession: {
                 active: false, isPaused: false, startTime: null, applications: [],
                 completedCount: 0, timerInterval: null, elapsedSeconds: 0, baseElapsedSeconds: 0
@@ -456,6 +512,16 @@
         });
         applyThemeIcon();
 
+        // --- Analytics collapse/expand ---
+        analyticsToggle.addEventListener('click', () => {
+            const expanded = analyticsToggle.getAttribute('aria-expanded') === 'true';
+            analyticsToggle.setAttribute('aria-expanded', String(!expanded));
+            analyticsBody.classList.toggle('hidden', expanded);
+            analyticsToggle.innerHTML = expanded
+                ? '<i class="fas fa-chevron-down" aria-hidden="true"></i>'
+                : '<i class="fas fa-chevron-up" aria-hidden="true"></i>';
+        });
+
         // Small helper: animate a stat element when its value changes.
         function setStat(el, value) {
             const prev = el.textContent;
@@ -490,6 +556,8 @@
                 state.fetchedTotalDays = data.totalDaysLogged;
                 state.fetchedLastCompleted = data.lastCompletedDate;
                 state.fetchedLastStatus = data.lastLogStatus;
+                state.fetchedCurrentMilestone = data.currentMilestone;
+                state.fetchedNextMilestone = data.nextMilestone;
                 const today = getTodayDateString();
                 let foundToday = false;
                 try {
@@ -506,14 +574,135 @@
                 showToast("Could not load data from the server. Showing defaults.", 'error', 6000);
                 state.dailyGoal = 5; state.fetchedTotalStreak = 0; state.fetchedGoalStreak = 0;
                 state.fetchedTotalDays = 0; state.fetchedLastCompleted = null; state.fetchedLastStatus = null;
+                state.fetchedCurrentMilestone = null; state.fetchedNextMilestone = null;
                 state.isTodayLogged = false;
             }
             dailyGoalInput.value = state.dailyGoal;
             updateStreakCounters();
             updateTotalDaysCounter();
+            updateMilestoneDisplay();
             state.calendarDate = new Date();
             await renderCalendar();
+            await loadAnalytics();
+            await loadGoalHistory();
             updateUI();
+        }
+
+        // --- Milestone badge / next-milestone hint (from /api/state) ---
+        function updateMilestoneDisplay() {
+            const current = state.fetchedCurrentMilestone;
+            const next = state.fetchedNextMilestone;
+            if (current) {
+                milestoneBadgeText.textContent = `${current}-day milestone`;
+                milestoneBadge.classList.remove('hidden');
+            } else {
+                milestoneBadge.classList.add('hidden');
+            }
+            if (next) {
+                const remaining = Math.max(0, next - state.fetchedGoalStreak);
+                nextMilestoneHint.textContent = remaining > 0
+                    ? `${remaining} day${remaining === 1 ? '' : 's'} to ${next}-day badge`
+                    : `Next badge at ${next} days`;
+                nextMilestoneHint.classList.remove('hidden');
+            } else {
+                nextMilestoneHint.classList.add('hidden');
+            }
+        }
+
+        // --- Analytics panel (from /api/analytics) ---
+        function statCard(label, value, icon, accent) {
+            return `
+                <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200 text-center flex flex-col justify-center">
+                    <span class="text-2xl font-extrabold ${accent} flex items-center justify-center gap-1">
+                        <i class="fas ${icon} text-lg opacity-80" aria-hidden="true"></i><span>${sanitize(String(value))}</span>
+                    </span>
+                    <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide mt-1">${sanitize(label)}</span>
+                </div>`;
+        }
+        async function loadAnalytics() {
+            try {
+                const resp = await fetch(`${API_BASE_URL}/analytics`);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const a = await resp.json();
+                if (!a.totalDaysLogged) {
+                    analyticsCards.innerHTML = '';
+                    analyticsCards.classList.add('hidden');
+                    analyticsWeekdayWrap.classList.add('hidden');
+                    analyticsEmpty.classList.remove('hidden');
+                    return;
+                }
+                analyticsEmpty.classList.add('hidden');
+                analyticsCards.classList.remove('hidden');
+                const best = a.bestDay
+                    ? `${a.bestDay.completedCount} (${a.bestDay.date})`
+                    : '—';
+                analyticsCards.innerHTML = [
+                    statCard('Total Applications', a.totalApplications, 'fa-paper-plane', 'text-indigo-600'),
+                    statCard('Completion Rate', `${a.completionRate}%`, 'fa-circle-check', 'text-green-600'),
+                    statCard('Avg / Day', a.avgApplicationsPerDay, 'fa-gauge-high', 'text-indigo-600'),
+                    statCard('Avg Min / Day', a.avgMinutesPerDay, 'fa-clock', 'text-indigo-600'),
+                    statCard('Complete Days', a.totalCompleteDays, 'fa-calendar-check', 'text-green-600'),
+                    statCard('Total Minutes', a.totalMinutes, 'fa-stopwatch', 'text-indigo-600'),
+                    statCard('Best Day', best, 'fa-trophy', 'text-amber-500'),
+                    statCard('Longest Streak', `${a.longestGoalStreak}d`, 'fa-fire', 'text-orange-500'),
+                ].join('');
+
+                // Per-weekday breakdown as simple proportional bars.
+                const weekdays = a.byWeekday || [];
+                const maxAvg = Math.max(1, ...weekdays.map(w => w.avgApplications));
+                if (weekdays.some(w => w.daysLogged > 0)) {
+                    analyticsWeekday.innerHTML = weekdays.map(w => {
+                        const pct = Math.round((w.avgApplications / maxAvg) * 100);
+                        const short = w.weekday.slice(0, 3);
+                        return `
+                            <div class="flex items-center gap-2 text-xs">
+                                <span class="w-9 shrink-0 text-gray-600 font-medium">${short}</span>
+                                <div class="flex-1 bg-gray-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                                    <div class="bg-indigo-500 h-3 rounded-full" style="width:${pct}%"></div>
+                                </div>
+                                <span class="w-24 shrink-0 text-right text-gray-600">${w.avgApplications}/day (${w.daysLogged}d)</span>
+                            </div>`;
+                    }).join('');
+                    analyticsWeekdayWrap.classList.remove('hidden');
+                } else {
+                    analyticsWeekdayWrap.classList.add('hidden');
+                }
+            } catch (e) {
+                console.error('Error loading analytics:', e);
+                analyticsCards.innerHTML = '';
+                analyticsCards.classList.add('hidden');
+                analyticsWeekdayWrap.classList.add('hidden');
+                analyticsEmpty.classList.remove('hidden');
+                analyticsEmpty.innerHTML = '<i class="fas fa-triangle-exclamation mr-1" aria-hidden="true"></i>Couldn\'t load analytics.';
+            }
+        }
+
+        // --- Goal change history (from /api/goal_history) ---
+        async function loadGoalHistory() {
+            try {
+                const resp = await fetch(`${API_BASE_URL}/goal_history`);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                const history = data.history || [];
+                if (history.length === 0) {
+                    goalHistoryDetails.classList.add('hidden');
+                    goalHistoryList.innerHTML = '';
+                    return;
+                }
+                goalHistoryDetails.classList.remove('hidden');
+                goalHistoryList.innerHTML = history.slice().reverse().map(h => {
+                    let when = h.changedAt;
+                    try { if (h.changedAt) when = new Date(h.changedAt).toLocaleString(); } catch (e) {}
+                    return `<li class="flex items-center gap-2">
+                        <i class="fas fa-arrow-right text-[0.65rem] text-gray-400" aria-hidden="true"></i>
+                        Goal set to <span class="font-semibold">${sanitize(String(h.dailyGoal))}</span>
+                        <span class="text-gray-400">· ${sanitize(when || '')}</span>
+                    </li>`;
+                }).join('');
+            } catch (e) {
+                console.error('Error loading goal history:', e);
+                goalHistoryDetails.classList.add('hidden');
+            }
         }
 
         const updateUI = () => {
@@ -638,6 +827,7 @@
                     const data = await response.json();
                     state.dailyGoal = data.dailyGoal;
                     showToast(`Daily goal set to ${data.dailyGoal}.`, 'success');
+                    await loadGoalHistory();
                 } catch (error) {
                     console.error("Error updating goal:", error);
                     showToast("Failed to update goal on the server. Reverting.", 'error');
@@ -657,6 +847,7 @@
             let completedTodayCount = 0;
             let elapsedTodaySeconds = 0;
             let applicationsToday = [];
+            let notesToday = '';
             let foundToday = false;
             startLogButton.disabled = true;
             try {
@@ -668,6 +859,7 @@
                         completedTodayCount = data.completed_count;
                         elapsedTodaySeconds = data.elapsed_seconds;
                         applicationsToday = data.applications || [];
+                        notesToday = data.notes || '';
                     }
                 } else if (response.status !== 404) {
                     throw new Error(`HTTP error fetching session! status: ${response.status}`);
@@ -698,6 +890,7 @@
                 state.currentSession.elapsedSeconds = 0;
             }
             state.isTodayLogged = foundToday;
+            sessionNotes.value = foundToday ? notesToday : '';
             startTimer();
             updateUI();
             updateProgressBar();
@@ -797,7 +990,8 @@
             const payload = {
                 completedCount: state.currentSession.applications.filter(a => a.done).length,
                 elapsedSeconds: state.currentSession.elapsedSeconds,
-                applications: applicationsToSend
+                applications: applicationsToSend,
+                notes: sessionNotes.value
             };
 
             finishDayButton.disabled = true;
@@ -820,14 +1014,23 @@
                 state.fetchedTotalDays = data.totalDaysLogged;
                 state.fetchedLastCompleted = data.lastCompletedDate;
                 state.fetchedLastStatus = data.lastLogStatus;
+                state.fetchedCurrentMilestone = data.currentMilestone;
+                state.fetchedNextMilestone = data.nextMilestone;
 
                 showToast(data.message || 'Day logged successfully!', 'success');
                 announce('Day logged.');
+                if (data.currentMilestone) {
+                    showToast(`${data.currentMilestone}-day goal-streak milestone reached!`, 'success');
+                }
 
                 resetCurrentSession();
+                sessionNotes.value = '';
+                updateMilestoneDisplay();
                 updateUI();
                 state.calendarDate = new Date();
                 await renderCalendar();
+                await loadAnalytics();
+                await loadGoalHistory();
 
             } catch (error) {
                 console.error("Error finishing day:", error);
@@ -854,6 +1057,7 @@
                         }
                         await loadState();
                         resetCurrentSession();
+                        sessionNotes.value = '';
                         hideModal();
                         showToast("All data has been reset.", 'success');
                         pastLogCardContainer.classList.add('hidden');
@@ -1041,6 +1245,10 @@
             }
         }
 
+        // Track which past day is open so edit/delete know the target date.
+        let openPastLogDate = null;
+        let openPastLogData = null;
+
         function displayPastLogs(logData) {
             pastLogCardContainer.innerHTML = '';
             pastLogCardContainer.classList.remove('hidden');
@@ -1049,11 +1257,17 @@
             const dateStr = logData?.log_date || 'selected date';
             const status = logData?.status || 'N/A';
             const applications = logData?.applications || [];
+            const notes = logData?.notes || '';
+            openPastLogDate = logData?.log_date || null;
+            openPastLogData = logData || null;
 
             let statusText = status === 'N/A' ? status : status.charAt(0).toUpperCase() + status.slice(1);
             let statusClass = 'status-na';
             if (status === 'complete') statusClass = 'status-complete';
             else if (status === 'incomplete') statusClass = 'status-incomplete';
+
+            // Only offer edit/delete when there is an actual logged day on the backend.
+            const editable = !!openPastLogDate && status !== 'N/A';
 
             let tableHTML = `
                 <div id="past-log-display">
@@ -1061,9 +1275,21 @@
                         <h3 class="text-xl font-semibold">Logs for ${sanitize(dateStr)}
                             <span class="text-base font-medium ml-1">(Status: <span class="${statusClass}">${sanitize(statusText)}</span>)</span>
                         </h3>
-                        <button id="close-past-log" class="btn-icon" type="button" aria-label="Close logs view"><i class="fas fa-xmark"></i></button>
+                        <div class="flex items-center gap-1">
+                            ${editable ? `<button id="edit-past-log" class="btn-icon" type="button" aria-label="Edit this day"><i class="fas fa-pen"></i></button>` : ''}
+                            ${editable ? `<button id="delete-past-log" class="btn-icon hover:text-red-500" type="button" aria-label="Delete this day"><i class="fas fa-trash-alt"></i></button>` : ''}
+                            <button id="close-past-log" class="btn-icon" type="button" aria-label="Close logs view"><i class="fas fa-xmark"></i></button>
+                        </div>
                     </div>
             `;
+
+            if (notes) {
+                tableHTML += `
+                    <div class="mb-4 p-3 rounded-md bg-gray-50 border border-gray-200 text-sm text-gray-700">
+                        <span class="font-semibold"><i class="fas fa-note-sticky mr-1 text-gray-400" aria-hidden="true"></i>Notes:</span>
+                        <span class="whitespace-pre-wrap">${sanitize(notes)}</span>
+                    </div>`;
+            }
 
             if (applications.length === 0) {
                 tableHTML += `<p class="text-base text-gray-500 italic mt-4 text-center"><i class="fas fa-inbox mr-1" aria-hidden="true"></i>No applications logged for this day.</p>`;
@@ -1098,22 +1324,211 @@
             if (closeBtn) closeBtn.addEventListener('click', () => {
                 pastLogCardContainer.classList.add('hidden');
                 logSeparator.classList.add('hidden');
+                openPastLogDate = null;
+                openPastLogData = null;
             });
+            const editBtn = document.getElementById('edit-past-log');
+            if (editBtn) editBtn.addEventListener('click', () => displayPastLogEditor(openPastLogData));
+            const delBtn = document.getElementById('delete-past-log');
+            if (delBtn) delBtn.addEventListener('click', () => confirmDeletePastLog(openPastLogDate));
             pastLogCardContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        async function openPastLog(clickedCell) {
+        // --- Edit a past day inline (PUT /api/logs/<date>) ---
+        function displayPastLogEditor(logData) {
+            if (!logData || !logData.log_date) return;
+            const dateStr = logData.log_date;
+            const apps = (logData.applications || []).map(a => ({
+                jobName: a.jobName || '', company: a.company || '', resume: a.resume || ''
+            }));
+            const notes = logData.notes || '';
+
+            const rowHtml = (a, i) => `
+                <tr data-edit-row="${i}">
+                    <td class="px-3 py-2"><input type="text" data-efield="jobName" value="${sanitize(a.jobName) === 'N/A' ? '' : sanitize(a.jobName)}" class="table-input" placeholder="Job/Position"></td>
+                    <td class="px-3 py-2"><input type="text" data-efield="company" value="${sanitize(a.company) === 'N/A' ? '' : sanitize(a.company)}" class="table-input" placeholder="Company"></td>
+                    <td class="px-3 py-2"><input type="text" data-efield="resume" value="${sanitize(a.resume) === 'N/A' ? '' : sanitize(a.resume)}" class="table-input" placeholder="Resume"></td>
+                    <td class="px-3 py-2 text-center"><button class="edit-remove-row btn-icon text-gray-400 hover:text-red-500" type="button" aria-label="Remove row"><i class="fas fa-xmark"></i></button></td>
+                </tr>`;
+
+            pastLogCardContainer.innerHTML = `
+                <div id="past-log-display">
+                    <div class="flex items-center justify-between gap-2 mb-4 flex-wrap">
+                        <h3 class="text-xl font-semibold"><i class="fas fa-pen mr-2 text-indigo-500" aria-hidden="true"></i>Editing ${sanitize(dateStr)}</h3>
+                        <button id="cancel-edit-past-log" class="btn-icon" type="button" aria-label="Cancel editing"><i class="fas fa-xmark"></i></button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                        <div>
+                            <label for="edit-completed-count" class="block text-sm font-medium text-gray-700 mb-1">Completed count</label>
+                            <input id="edit-completed-count" type="number" min="0" inputmode="numeric" value="${Number(logData.completedCount) || 0}" class="table-input">
+                            <p class="text-xs text-gray-500 mt-1">Status is recomputed against your current daily goal (${state.dailyGoal}).</p>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-notes" class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                        <textarea id="edit-notes" rows="3" class="table-input" placeholder="Optional note for this day">${sanitize(notes) === 'N/A' ? '' : sanitize(notes)}</textarea>
+                    </div>
+                    <div class="overflow-x-auto mb-3">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50"><tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Job/Position</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Resume</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"><span class="sr-only">Remove</span></th>
+                            </tr></thead>
+                            <tbody id="edit-apps-body">${apps.map(rowHtml).join('')}</tbody>
+                        </table>
+                    </div>
+                    <div class="flex flex-wrap justify-between gap-2">
+                        <button id="edit-add-row" class="btn btn-secondary" type="button"><i class="fas fa-plus mr-2" aria-hidden="true"></i>Add Application</button>
+                        <div class="flex gap-2">
+                            <button id="cancel-edit-btn" class="btn btn-secondary" type="button">Cancel</button>
+                            <button id="save-edit-btn" class="btn btn-success" type="button"><i class="fas fa-save mr-2" aria-hidden="true"></i>Save Changes</button>
+                        </div>
+                    </div>
+                </div>`;
+
+            const editBody = document.getElementById('edit-apps-body');
+            let rowCounter = apps.length;
+            document.getElementById('edit-add-row').addEventListener('click', () => {
+                const tmp = document.createElement('tbody');
+                tmp.innerHTML = rowHtml({ jobName: '', company: '', resume: '' }, rowCounter++);
+                const tr = tmp.firstElementChild;
+                editBody.appendChild(tr);
+                const inp = tr.querySelector('input'); if (inp) inp.focus();
+            });
+            editBody.addEventListener('click', (e) => {
+                const rm = e.target.closest('.edit-remove-row');
+                if (rm) rm.closest('tr').remove();
+            });
+            const cancel = () => openPastLog(null, dateStr);
+            document.getElementById('cancel-edit-past-log').addEventListener('click', cancel);
+            document.getElementById('cancel-edit-btn').addEventListener('click', cancel);
+            document.getElementById('save-edit-btn').addEventListener('click', () => savePastLogEdit(dateStr));
+            pastLogCardContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const cc = document.getElementById('edit-completed-count');
+            if (cc) cc.focus();
+        }
+
+        async function savePastLogEdit(dateStr) {
+            const ccEl = document.getElementById('edit-completed-count');
+            const completedCount = parseInt(ccEl.value, 10);
+            if (isNaN(completedCount) || completedCount < 0) {
+                showToast('Completed count must be 0 or greater.', 'error');
+                return;
+            }
+            const applications = Array.from(document.querySelectorAll('#edit-apps-body tr')).map(tr => ({
+                jobName: tr.querySelector('[data-efield="jobName"]').value,
+                company: tr.querySelector('[data-efield="company"]').value,
+                resume: tr.querySelector('[data-efield="resume"]').value
+            }));
+            const payload = {
+                completedCount,
+                notes: document.getElementById('edit-notes').value,
+                applications
+            };
+            const saveBtn = document.getElementById('save-edit-btn');
+            const orig = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2" aria-hidden="true"></i>Saving...';
+            try {
+                const resp = await fetch(`${API_BASE_URL}/logs/${dateStr}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || resp.statusText);
+                }
+                const data = await resp.json();
+                // The PUT response includes the recomputed status + current_status fields.
+                state.fetchedTotalStreak = data.totalStreak;
+                state.fetchedGoalStreak = data.goalStreak;
+                state.fetchedTotalDays = data.totalDaysLogged;
+                state.fetchedLastCompleted = data.lastCompletedDate;
+                state.fetchedLastStatus = data.lastLogStatus;
+                state.fetchedCurrentMilestone = data.currentMilestone;
+                state.fetchedNextMilestone = data.nextMilestone;
+                updateStreakCounters();
+                updateTotalDaysCounter();
+                updateMilestoneDisplay();
+                showToast('Day updated.', 'success');
+                announce('Day updated.');
+                await renderCalendar();
+                await loadAnalytics();
+                await openPastLog(null, dateStr); // re-open in read view
+            } catch (e) {
+                console.error('Error saving edit:', e);
+                showToast(`Failed to save: ${e.message}`, 'error', 6000);
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = orig;
+            }
+        }
+
+        // --- Delete a past day (DELETE /api/logs/<date>) ---
+        function confirmDeletePastLog(dateStr) {
+            if (!dateStr) return;
+            showModal(
+                'Delete this day',
+                `Delete the log for ${dateStr} and all its applications? This cannot be undone.`,
+                async () => {
+                    modalConfirm.disabled = true;
+                    try {
+                        const resp = await fetch(`${API_BASE_URL}/logs/${dateStr}`, { method: 'DELETE' });
+                        if (!resp.ok) {
+                            const err = await resp.json().catch(() => ({}));
+                            throw new Error(err.error || resp.statusText);
+                        }
+                        const data = await resp.json();
+                        state.fetchedTotalStreak = data.totalStreak;
+                        state.fetchedGoalStreak = data.goalStreak;
+                        state.fetchedTotalDays = data.totalDaysLogged;
+                        state.fetchedLastCompleted = data.lastCompletedDate;
+                        state.fetchedLastStatus = data.lastLogStatus;
+                        state.fetchedCurrentMilestone = data.currentMilestone;
+                        state.fetchedNextMilestone = data.nextMilestone;
+                        updateStreakCounters();
+                        updateTotalDaysCounter();
+                        updateMilestoneDisplay();
+                        hideModal();
+                        showToast(`Log for ${dateStr} deleted.`, 'success');
+                        announce('Day deleted.');
+                        pastLogCardContainer.classList.add('hidden');
+                        logSeparator.classList.add('hidden');
+                        openPastLogDate = null;
+                        openPastLogData = null;
+                        await renderCalendar();
+                        await loadAnalytics();
+                    } catch (e) {
+                        console.error('Error deleting day:', e);
+                        hideModal();
+                        showToast(`Failed to delete: ${e.message}`, 'error', 6000);
+                    } finally {
+                        modalConfirm.disabled = false;
+                    }
+                }
+            );
+        }
+
+        async function openPastLog(clickedCell, explicitDate) {
             if (state.currentSession.active) {
                 showToast("Finish or pause the current session before viewing past logs.", 'info');
                 return;
             }
-            if (!clickedCell || clickedCell.classList.contains('other-month') || !clickedCell.dataset.date) return;
-            const dateStr = clickedCell.dataset.date;
-            if (!clickedCell.classList.contains('logged') && !clickedCell.classList.contains('incomplete')) {
-                pastLogCardContainer.innerHTML = '';
-                pastLogCardContainer.classList.add('hidden');
-                logSeparator.classList.add('hidden');
-                return;
+            let dateStr;
+            if (explicitDate) {
+                // Re-open a specific date (used after edit/save) regardless of cell state.
+                dateStr = explicitDate;
+            } else {
+                if (!clickedCell || clickedCell.classList.contains('other-month') || !clickedCell.dataset.date) return;
+                dateStr = clickedCell.dataset.date;
+                if (!clickedCell.classList.contains('logged') && !clickedCell.classList.contains('incomplete')) {
+                    pastLogCardContainer.innerHTML = '';
+                    pastLogCardContainer.classList.add('hidden');
+                    logSeparator.classList.add('hidden');
+                    return;
+                }
             }
             try {
                 const response = await fetch(`${API_BASE_URL}/logs/${dateStr}`);
