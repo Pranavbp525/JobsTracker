@@ -43,10 +43,22 @@ flask run --host=0.0.0.0 --port=5001
 
 ## Tests, lint, build
 
-There is **no test suite, no linter, and no frontend build step** in this repo.
-The frontend is a single hand-written HTML file loaded directly by Nginx; the
-backend is plain Flask run via `flask run`. Don't look for or invent these
-toolchains — if asked to add tests/CI, you're starting from scratch.
+There is **no linter and no frontend build step** in this repo — the frontend is
+a single hand-written HTML file loaded directly by Nginx, and the backend is
+plain Flask run via `flask run`. Don't invent a bundler or linter toolchain.
+
+What does exist:
+- **Backend tests** (optional, not a deploy step) in `backend/tests/`, run against
+  in-memory SQLite — no Postgres needed:
+  ```bash
+  cd backend && pip install -r requirements.txt -r requirements-dev.txt && python -m pytest
+  ```
+- **Frontend syntax check** — `python3 scripts/check_inline_js.py` extracts the
+  inline `<script>` blocks from `frontend/index.html` and runs `node --check` on
+  each (catches typos that would ship a blank page; the file has no build step).
+- **CI** — `.github/workflows/ci.yml` runs both of the above on every PR/push to
+  `master`. Run both locally before pushing so the PR check stays green. (Enforcing
+  the check as a merge gate requires branch protection in repo settings.)
 
 ## Architecture
 

@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+jobs:
+  backend-tests:
+    name: Backend tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Match the runtime in backend/Dockerfile (python:3.9-slim).
+          python-version: "3.9"
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run tests
+        working-directory: backend
+        # Suite runs against in-memory SQLite (see conftest.py) — no Postgres needed.
+        run: python -m pytest -q
+
+  frontend-syntax:
+    name: Frontend inline-JS syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check inline JS in frontend/index.html
+        # The frontend has no build step; this catches syntax errors in the
+        # embedded <script> blocks that would otherwise ship a blank page.
+        run: python3 scripts/check_inline_js.py
