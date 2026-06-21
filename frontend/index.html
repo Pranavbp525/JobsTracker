@@ -3,189 +3,262 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4f46e5">
     <title>Job Application Tracker</title>
+    <!-- Set theme before paint to avoid a flash of the wrong color scheme -->
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('theme');
+                var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (stored === 'dark' || (!stored && prefersDark)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Enable class-based dark mode for the Tailwind CDN runtime.
+        tailwind.config = { darkMode: 'class' };
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .btn { @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2; }
-        .btn-primary { @apply bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500; }
-        .btn-secondary { @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500; }
-        .btn-success { @apply bg-green-600 hover:bg-green-700 focus:ring-green-500; }
-        .btn-danger { @apply bg-red-600 hover:bg-red-700 focus:ring-red-500; }
-        .btn-warning { @apply bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-400 text-black; }
-        .btn-icon { @apply p-2 rounded-full text-gray-500 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500; }
+        :root { color-scheme: light; }
+        html.dark { color-scheme: dark; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            transition: background-color .2s ease, color .2s ease;
+        }
+        html.dark body { background-color: #0f172a; color: #e2e8f0; }
+
+        /* Respect users who prefer reduced motion. */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: .001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: .001ms !important;
+            }
+        }
+
+        /* Visible, consistent keyboard focus everywhere. */
+        :focus-visible {
+            outline: 2px solid #6366f1;
+            outline-offset: 2px;
+        }
+
+        /* Accessible "visually hidden but available to screen readers" helper. */
+        .sr-only {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+        }
+
+        .btn { @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors transition-transform; }
+        .btn:active:not(:disabled) { transform: translateY(1px); }
+        .btn-primary { @apply bg-indigo-600 hover:bg-indigo-700 focus-visible:ring-indigo-500; }
+        .btn-secondary { @apply bg-gray-600 hover:bg-gray-700 focus-visible:ring-gray-500; }
+        .btn-success { @apply bg-green-600 hover:bg-green-700 focus-visible:ring-green-500; }
+        .btn-danger { @apply bg-red-600 hover:bg-red-700 focus-visible:ring-red-500; }
+        .btn-warning { @apply bg-yellow-500 hover:bg-yellow-600 focus-visible:ring-yellow-400 text-black; }
+        .btn-icon { @apply p-2 rounded-full text-gray-500 hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500; }
+        html.dark .btn-icon { @apply text-gray-300 hover:bg-gray-700 focus-visible:ring-offset-gray-900; }
         .btn:disabled { @apply bg-gray-400 cursor-not-allowed hover:bg-gray-400 opacity-70; }
 
+        /* App surface card */
+        .surface { @apply bg-white; }
+        html.dark .surface { background-color: #1e293b; }
+
         .calendar-day {
-            width: 2.5rem !important;
-            height: 2.5rem !important;
-            min-width: 2.5rem !important;
-            min-height: 2.5rem !important;
-            max-width: 2.5rem !important;
-            max-height: 2.5rem !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50% !important;
-            font-size: 1rem;
-            line-height: 1;
-            margin: 0 auto;
+            width: 2.5rem; height: 2.5rem;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 9999px;
+            font-size: 1rem; line-height: 1; margin: 0 auto;
             box-sizing: border-box;
+            position: relative;
+            transition: transform .12s ease, background-color .12s ease;
         }
+        .calendar-day.clickable { cursor: pointer; }
+        .calendar-day.clickable:hover { transform: scale(1.08); }
+        .calendar-day.clickable:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+
+        /* "complete" = goal met. Saturated green like a GitHub contribution graph high tier. */
         .calendar-day.logged {
-            background-color: #3b82f6 !important; /* Tailwind blue-500 */
-            color: #fff !important;
-            font-weight: bold;
-            border-radius: 50% !important;
-            border: none !important;
+            background-color: #16a34a; color: #fff; font-weight: 700; border: none;
         }
+        /* "incomplete" = logged but goal not met. Amber. */
         .calendar-day.incomplete {
-            background-color: #f59e42 !important; /* Tailwind orange-400 */
-            color: #fff !important;
-            font-weight: bold;
-            border-radius: 50% !important;
-            border: none !important;
-            width: 2.5rem !important;
-            height: 2.5rem !important;
-            min-width: 2.5rem !important;
-            min-height: 2.5rem !important;
-            max-width: 2.5rem !important;
-            max-height: 2.5rem !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            line-height: 1;
-            margin: 0 auto;
-            box-sizing: border-box;
+            background-color: #f59e0b; color: #fff; font-weight: 700; border: none;
         }
-        .calendar-day.today {
-            box-shadow: 0 0 0 3px #6366f1 !important;
-            border-radius: 50% !important;
-        }
-        .calendar-day.logged.today {
-            background-color: #3b82f6 !important;
-            color: #fff !important;
-            font-weight: bold;
-            border-radius: 50% !important;
-            border: none !important;
-            box-shadow: 0 0 0 3px #6366f1 !important; /* Tailwind indigo-500 ring */
-        }
-        .calendar-day.incomplete.today {
-            background-color: #f59e42 !important;
-            color: #fff !important;
-            font-weight: bold;
-            border-radius: 50% !important;
-            border: none !important;
-            box-shadow: 0 0 0 3px #6366f1 !important;
-        }
-        .calendar-day.other-month { @apply text-gray-400 bg-gray-50 cursor-default hover:bg-gray-50; }
+        .calendar-day.today { box-shadow: 0 0 0 2px var(--today-ring, #6366f1); }
+        html.dark .calendar-day { color: #cbd5e1; }
+        html.dark .calendar-day.logged, html.dark .calendar-day.incomplete { color: #fff; }
+        .calendar-day.other-month { @apply text-gray-300; cursor: default; }
+        html.dark .calendar-day.other-month { color: #475569; }
+
         .table-input { @apply block w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm; }
-        .modal { @apply fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50; }
-        .modal-content { @apply bg-white p-6 rounded-lg shadow-xl max-w-sm mx-auto; }
-        .paused-overlay { @apply absolute inset-0 bg-gray-300 bg-opacity-50 flex items-center justify-center rounded-lg z-10; }
-        .paused-overlay span { @apply bg-gray-700 text-white px-4 py-2 rounded-md text-lg font-semibold; }
+        html.dark .table-input { background-color: #0f172a; border-color: #334155; color: #e2e8f0; }
+        html.dark .table-input::placeholder { color: #64748b; }
 
-        /* Styles for Past Log Display Area */
-        /* Card container for the past logs - REMOVED mt-8 */
-        .past-log-card {
-             @apply bg-white p-6 rounded-lg shadow-md border border-gray-200;
+        .modal { @apply fixed inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full flex items-center justify-center z-50 p-4; }
+        .modal-content { @apply p-6 rounded-lg shadow-xl max-w-sm mx-auto w-full; background:#fff; }
+        html.dark .modal-content { background-color: #1e293b; color: #e2e8f0; }
+        .modal-backdrop-enter { animation: fadeIn .15s ease; }
+        .modal-card-enter { animation: popIn .18s ease; }
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes popIn { from { opacity: 0; transform: scale(.96) } to { opacity: 1; transform: scale(1) } }
+
+        .paused-overlay { @apply absolute inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center rounded-lg z-10 backdrop-blur-sm; }
+        .paused-overlay span { @apply bg-gray-800 text-white px-4 py-2 rounded-md text-lg font-semibold; }
+
+        /* Toast notifications */
+        #toast-region { @apply fixed top-4 right-4 z-[60] flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)] sm:w-auto; }
+        .toast {
+            @apply flex items-start gap-3 px-4 py-3 rounded-lg shadow-lg text-sm text-white;
+            animation: toastIn .2s ease;
         }
-        #past-log-display { /* No specific styles needed here now */ }
-        #past-log-display h3 { @apply text-xl font-semibold mb-4 text-gray-900; }
-        #past-log-display table { @apply min-w-full divide-y divide-gray-200 border border-gray-300 rounded-lg shadow-sm; }
-        #past-log-display th { @apply px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-100 rounded-t-lg; }
-        #past-log-display td { @apply px-4 py-3 whitespace-nowrap text-sm text-gray-800; }
-        #past-log-display tbody tr:nth-child(even) { @apply bg-gray-50; }
-        #past-log-display p { @apply text-base text-gray-600 italic mt-4 text-center; }
-        .status-complete { @apply text-blue-700 font-semibold; }
-        .status-incomplete { @apply text-red-700 font-semibold; }
-        .status-na { @apply text-gray-600 font-semibold; }
+        .toast.leaving { animation: toastOut .2s ease forwards; }
+        .toast-success { background-color: #16a34a; }
+        .toast-error { background-color: #dc2626; }
+        .toast-info { background-color: #4f46e5; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(20px) } to { opacity: 1; transform: translateX(0) } }
+        @keyframes toastOut { to { opacity: 0; transform: translateX(20px) } }
 
-        /* Style for the horizontal separator */
-        .section-separator {
-            /* Increased vertical margin (my-16) */
-            @apply border-t-2 border-gray-300 my-16; /* Increased margin */
+        /* Skeleton loading shimmer */
+        .skeleton {
+            background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 37%, #e5e7eb 63%);
+            background-size: 400% 100%;
+            animation: shimmer 1.2s ease infinite;
+            border-radius: 9999px;
         }
+        html.dark .skeleton {
+            background: linear-gradient(90deg, #334155 25%, #1e293b 37%, #334155 63%);
+            background-size: 400% 100%;
+        }
+        @keyframes shimmer { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }
 
+        /* Past log table styling */
+        #past-log-display h3 { @apply text-xl font-semibold mb-4; }
+        .status-complete { @apply text-green-600 font-semibold; }
+        .status-incomplete { @apply text-amber-600 font-semibold; }
+        .status-na { @apply text-gray-500 font-semibold; }
+        html.dark .past-log-card { background-color: #1e293b; border-color: #334155; }
+        .past-log-card { @apply p-6 rounded-lg shadow-md border border-gray-200; background:#fff; }
+
+        .section-separator { @apply border-t-2 border-gray-200 my-12; }
+        html.dark .section-separator { border-color: #334155; }
+        html.dark .text-gray-800 { color: #e2e8f0 !important; }
+        html.dark .text-gray-700 { color: #cbd5e1 !important; }
+        html.dark .text-gray-600 { color: #94a3b8 !important; }
+        html.dark .text-gray-500 { color: #94a3b8 !important; }
+        html.dark .bg-indigo-50 { background-color: #1e293b !important; }
+        html.dark .border-indigo-200 { border-color: #334155 !important; }
+        html.dark .bg-gray-50 { background-color: #0f172a !important; }
+        html.dark .bg-gray-100 { background-color: #334155 !important; }
+        html.dark .border-gray-200 { border-color: #334155 !important; }
+        html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: #334155 !important; }
+        html.dark tbody tr.bg-green-50 { background-color: rgba(22,163,74,.15) !important; }
+
+        /* Animated stat count pop */
+        .stat-pop { animation: statPop .35s ease; }
+        @keyframes statPop { 0% { transform: scale(1) } 40% { transform: scale(1.25) } 100% { transform: scale(1) } }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
-    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-lg">
-        <div class="flex justify-end mb-2">
-            <span id="server-clock" class="text-sm font-mono text-gray-600 bg-gray-100 px-3 py-1 rounded"></span>
+    <!-- Live region for screen-reader announcements -->
+    <div id="sr-live" class="sr-only" role="status" aria-live="polite"></div>
+    <!-- Toast container -->
+    <div id="toast-region" aria-live="polite" aria-atomic="false"></div>
+
+    <main class="max-w-4xl mx-auto surface p-6 rounded-lg shadow-lg">
+        <div class="flex justify-between items-center mb-2 gap-2">
+            <button id="theme-toggle" class="btn-icon" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <i class="fas fa-moon" aria-hidden="true"></i>
+            </button>
+            <span id="server-clock" class="text-sm font-mono text-gray-600 bg-gray-100 px-3 py-1 rounded" aria-label="Current server time"></span>
         </div>
-        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Job Application Tracker</h1>
+        <h1 class="text-3xl font-extrabold text-center text-gray-800 mb-6 tracking-tight">Job Application Tracker</h1>
 
         <!-- Export Logs Controls -->
-        <div class="flex flex-row justify-end items-center mb-4 gap-2">
-            <label for="export-format" class="text-sm font-medium text-gray-700 mr-2">Export as:</label>
-            <select id="export-format" class="px-2 py-1 border border-gray-300 rounded-md text-sm">
+        <div class="flex flex-row flex-wrap justify-end items-center mb-4 gap-2">
+            <label for="export-format" class="text-sm font-medium text-gray-700">Export as:</label>
+            <select id="export-format" class="px-2 py-1 border border-gray-300 rounded-md text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200">
                 <option value="csv">CSV</option>
                 <option value="json">JSON</option>
             </select>
-            <button id="export-logs-button" class="btn btn-secondary">
-                <i class="fas fa-download mr-2"></i>Export Logs
+            <button id="export-logs-button" class="btn btn-secondary" type="button">
+                <i class="fas fa-download mr-2" aria-hidden="true"></i>Export Logs
             </button>
         </div>
 
-        <div class="flex flex-col md:flex-row justify-between items-center mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200 gap-4">
-            <div class="mb-4 md:mb-0">
-                <label for="daily-goal" class="block text-sm font-medium text-gray-700 mb-1">Daily Goal:</label>
-                <input type="number" id="daily-goal" name="daily-goal" min="1" value="5" class="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+        <!-- Stats summary -->
+        <section aria-label="Your progress" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200 flex flex-col items-start col-span-2 md:col-span-1">
+                <label for="daily-goal" class="text-sm font-medium text-gray-700 mb-1">Daily Goal</label>
+                <input type="number" id="daily-goal" name="daily-goal" min="1" value="5" inputmode="numeric"
+                       class="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200">
             </div>
-            <div class="text-center">
-                <span class="text-sm font-semibold text-gray-800">Total Streak:</span>
-                <span id="total-streak-counter" class="text-xl font-bold text-indigo-600 ml-1">0</span>
-                <span class="text-sm font-semibold text-gray-800"> days</span>
+            <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200 text-center flex flex-col justify-center">
+                <span class="text-3xl font-extrabold text-indigo-600 flex items-center justify-center gap-1">
+                    <i class="fas fa-fire text-orange-500 text-2xl" aria-hidden="true"></i><span id="total-streak-counter">0</span>
+                </span>
+                <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide mt-1">Total Streak (days)</span>
             </div>
-            <div class="text-center">
-                <span class="text-sm font-semibold text-gray-800">Goal Streak:</span>
-                <span id="goal-streak-counter" class="text-xl font-bold text-green-600 ml-1">0</span>
-                <span class="text-sm font-semibold text-gray-800"> days</span>
+            <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200 text-center flex flex-col justify-center">
+                <span class="text-3xl font-extrabold text-green-600 flex items-center justify-center gap-1">
+                    <i class="fas fa-bullseye text-green-500 text-2xl" aria-hidden="true"></i><span id="goal-streak-counter">0</span>
+                </span>
+                <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide mt-1">Goal Streak (days)</span>
             </div>
-             <div class="text-center">
-                 <span class="text-sm font-semibold text-gray-800">Total Days Logged: <span id="total-days-logged" class="text-xl font-bold text-gray-900">0</span></span>
-             </div>
-        </div>
+            <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200 text-center flex flex-col justify-center">
+                <span class="text-3xl font-extrabold text-gray-900 dark:text-white" id="total-days-logged">0</span>
+                <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide mt-1">Total Days Logged</span>
+            </div>
+        </section>
 
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-2 md:gap-4">
-            <button id="start-log-button" class="btn btn-primary w-full md:w-auto order-1 md:order-1">
-                <i class="fas fa-play mr-2"></i>Start Logging
+            <button id="start-log-button" class="btn btn-primary w-full md:w-auto order-1 md:order-1" type="button">
+                <i class="fas fa-play mr-2" aria-hidden="true"></i>Start Logging
             </button>
             <div id="timer-section" class="text-center hidden order-3 md:order-2 mt-2 md:mt-0">
                 <span class="text-lg font-medium text-gray-700">Time Elapsed:</span>
-                <span id="timer" class="text-xl font-bold text-gray-900 ml-2">00:00:00</span>
+                <span id="timer" class="text-xl font-bold text-gray-900 dark:text-white ml-2" aria-live="off">00:00:00</span>
             </div>
-            <button id="pause-resume-button" class="btn btn-warning w-full md:w-auto hidden order-2 md:order-3">
-                <i class="fas fa-pause mr-2"></i>Pause
+            <button id="pause-resume-button" class="btn btn-warning w-full md:w-auto hidden order-2 md:order-3" type="button">
+                <i class="fas fa-pause mr-2" aria-hidden="true"></i>Pause
             </button>
-            <button id="finish-day-button" class="btn btn-success w-full md:w-auto hidden order-4 md:order-4">
-                <i class="fas fa-flag-checkered mr-2"></i>Finish Day
+            <button id="finish-day-button" class="btn btn-success w-full md:w-auto hidden order-4 md:order-4" type="button">
+                <i class="fas fa-flag-checkered mr-2" aria-hidden="true"></i>Finish Day
             </button>
-             <button id="reset-button" class="btn btn-danger w-full md:w-auto order-5 md:order-5 mt-2 md:mt-0">
-                <i class="fas fa-trash-alt mr-2"></i>Reset All Data
+            <button id="reset-button" class="btn btn-danger w-full md:w-auto order-5 md:order-5 mt-2 md:mt-0" type="button">
+                <i class="fas fa-trash-alt mr-2" aria-hidden="true"></i>Reset All Data
             </button>
         </div>
 
-        <div id="logging-area" class="hidden relative"> <div id="paused-overlay" class="paused-overlay hidden">
-                 <span>Paused</span>
-             </div>
+        <div id="logging-area" class="hidden relative">
+            <div id="paused-overlay" class="paused-overlay hidden">
+                 <span><i class="fas fa-pause mr-2" aria-hidden="true"></i>Paused</span>
+            </div>
             <div class="mb-4">
                 <div class="flex justify-between mb-1">
-                    <span class="text-sm font-medium text-indigo-700">Progress</span>
-                    <span id="progress-text" class="text-sm font-medium text-indigo-700">0% (0 / 5)</span>
+                    <span class="text-sm font-medium text-indigo-700 dark:text-indigo-300">Progress</span>
+                    <span id="progress-text" class="text-sm font-medium text-indigo-700 dark:text-indigo-300">0% (0 / 5)</span>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+                <div class="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-3" role="progressbar" id="progress-bar-wrap" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Daily goal progress">
+                    <div id="progress-bar" class="bg-indigo-600 h-3 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
                 </div>
             </div>
-            <div class="mb-4 overflow-x-auto">
+            <!-- Empty state shown when no applications added yet -->
+            <div id="apps-empty-state" class="hidden text-center py-8 text-gray-500">
+                <i class="fas fa-clipboard-list text-4xl mb-3 opacity-40" aria-hidden="true"></i>
+                <p class="text-sm">No applications yet. Click <span class="font-semibold">Add Application</span> to log your first one.</p>
+            </div>
+            <div id="apps-table-wrap" class="mb-4 overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
@@ -193,45 +266,53 @@
                             <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
                             <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resume Used</th>
                             <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Done</th>
+                            <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><span class="sr-only">Remove</span></th>
                         </tr>
                     </thead>
-                    <tbody id="application-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                    <tbody id="application-table-body" class="bg-white dark:bg-transparent divide-y divide-gray-200"></tbody>
                 </table>
             </div>
             <div class="text-center">
-                <button id="add-row-button" class="btn btn-secondary">
-                    <i class="fas fa-plus mr-2"></i>Add Application
+                <button id="add-row-button" class="btn btn-secondary" type="button">
+                    <i class="fas fa-plus mr-2" aria-hidden="true"></i>Add Application
                 </button>
             </div>
         </div>
 
-        <div class="mt-8 pt-6 border-t border-gray-200"> <h2 class="text-xl font-semibold text-center text-gray-800 mb-4">Monthly Progress</h2>
+        <div class="mt-8 pt-6 border-t border-gray-200">
+            <h2 class="text-xl font-semibold text-center text-gray-800 mb-4">Monthly Progress</h2>
             <div class="flex justify-between items-center mb-4">
-                 <button id="prev-month" class="btn btn-icon"><i class="fas fa-chevron-left"></i></button>
-                 <h3 id="calendar-month-year" class="text-lg font-medium text-gray-700">Month Year</h3>
-                 <button id="next-month" class="btn btn-icon"><i class="fas fa-chevron-right"></i></button>
+                 <button id="prev-month" class="btn btn-icon" type="button" aria-label="Previous month"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+                 <h3 id="calendar-month-year" class="text-lg font-medium text-gray-700" aria-live="polite">Month Year</h3>
+                 <button id="next-month" class="btn btn-icon" type="button" aria-label="Next month"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
             </div>
-            <div class="grid grid-cols-7 gap-1 text-center mb-2 text-xs font-medium text-gray-500">
+            <div class="grid grid-cols-7 gap-1 text-center mb-2 text-xs font-medium text-gray-500" aria-hidden="true">
                 <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
             </div>
-            <div id="calendar-grid" class="grid grid-cols-7 gap-2 justify-items-center"></div>
+            <div id="calendar-grid" class="grid grid-cols-7 gap-2 justify-items-center" role="grid" aria-label="Activity calendar"></div>
+            <!-- Calendar legend -->
+            <div class="flex flex-wrap justify-center gap-4 mt-4 text-xs text-gray-600">
+                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3.5 h-3.5 rounded-full" style="background:#16a34a"></span>Goal met</span>
+                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3.5 h-3.5 rounded-full" style="background:#f59e0b"></span>Logged, goal not met</span>
+                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3.5 h-3.5 rounded-full ring-2 ring-indigo-500"></span>Today</span>
+            </div>
         </div>
 
         <hr class="section-separator hidden" id="log-separator">
 
-        <div class="past-log-card hidden" id="past-log-card-container"> <div id="past-log-display">
-                </div>
+        <div class="past-log-card hidden" id="past-log-card-container">
+            <div id="past-log-display"></div>
         </div>
 
-    </div>
+    </main>
 
-    <div id="confirmation-modal" class="modal hidden">
+    <div id="confirmation-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message">
         <div class="modal-content">
-            <h3 class="text-lg font-medium leading-6 text-gray-900 mb-2" id="modal-title">Confirm Action</h3>
+            <h3 class="text-lg font-medium leading-6 mb-2" id="modal-title">Confirm Action</h3>
             <p class="text-sm text-gray-500 mb-4" id="modal-message">Are you sure?</p>
             <div class="flex justify-end gap-3">
-                <button id="modal-cancel" class="btn btn-secondary">Cancel</button>
-                <button id="modal-confirm" class="btn btn-danger">Confirm</button>
+                <button id="modal-cancel" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="modal-confirm" class="btn btn-danger" type="button">Confirm</button>
             </div>
         </div>
     </div>
@@ -255,22 +336,29 @@
         const pausedOverlay = document.getElementById('paused-overlay');
         const progressTextEl = document.getElementById('progress-text');
         const progressBarEl = document.getElementById('progress-bar');
+        const progressBarWrap = document.getElementById('progress-bar-wrap');
         const applicationTableBody = document.getElementById('application-table-body');
+        const appsTableWrap = document.getElementById('apps-table-wrap');
+        const appsEmptyState = document.getElementById('apps-empty-state');
         const addRowButton = document.getElementById('add-row-button');
         const calendarGrid = document.getElementById('calendar-grid');
         const calendarMonthYear = document.getElementById('calendar-month-year');
         const prevMonthButton = document.getElementById('prev-month');
         const nextMonthButton = document.getElementById('next-month');
-        const logSeparator = document.getElementById('log-separator'); // Get separator
+        const logSeparator = document.getElementById('log-separator');
         const pastLogCardContainer = document.getElementById('past-log-card-container');
         const pastLogDisplay = document.getElementById('past-log-display');
         const confirmationModal = document.getElementById('confirmation-modal');
+        const modalContent = confirmationModal.querySelector('.modal-content');
         const modalTitle = document.getElementById('modal-title');
         const modalMessage = document.getElementById('modal-message');
         const modalCancel = document.getElementById('modal-cancel');
         const modalConfirm = document.getElementById('modal-confirm');
         const exportLogsButton = document.getElementById('export-logs-button');
         const exportFormatSelect = document.getElementById('export-format');
+        const themeToggle = document.getElementById('theme-toggle');
+        const toastRegion = document.getElementById('toast-region');
+        const srLive = document.getElementById('sr-live');
 
         // --- Frontend State Variables ---
         let state = {
@@ -284,33 +372,110 @@
             calendarDate: new Date()
         };
         let confirmCallback = null;
+        let lastFocusedBeforeModal = null;
 
         // --- Utility Functions ---
-        // Use server time for today string
         const getTodayDateString = () => serverTodayString || (serverDateObj ? serverDateObj.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
-        const formatTime = (totalSeconds) => { /* ... unchanged ... */
+        const formatTime = (totalSeconds) => {
              const hours = Math.floor(totalSeconds / 3600);
              const minutes = Math.floor((totalSeconds % 3600) / 60);
              const seconds = totalSeconds % 60;
              return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
          };
-        const showModal = (title, message, onConfirm) => { /* ... unchanged ... */
-             modalTitle.textContent = title;
-             modalMessage.textContent = message;
-             confirmCallback = onConfirm;
-             confirmationModal.classList.remove('hidden');
-         };
-        const hideModal = () => { /* ... unchanged ... */
-             confirmationModal.classList.add('hidden');
-             confirmCallback = null;
-         };
-         const sanitize = (str) => { /* ... unchanged ... */
+        const sanitize = (str) => {
             if (!str) return 'N/A';
             const temp = document.createElement('div');
             temp.textContent = str;
             return temp.innerHTML;
-         };
+        };
 
+        // --- Toast notifications (replaces alert()) ---
+        function showToast(message, type = 'info', duration = 4000) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+            const icon = type === 'success' ? 'fa-circle-check'
+                       : type === 'error' ? 'fa-circle-exclamation'
+                       : 'fa-circle-info';
+            toast.innerHTML = `<i class="fas ${icon} mt-0.5" aria-hidden="true"></i><span>${sanitize(message)}</span>`;
+            toastRegion.appendChild(toast);
+            const remove = () => {
+                toast.classList.add('leaving');
+                toast.addEventListener('animationend', () => toast.remove(), { once: true });
+            };
+            const timer = setTimeout(remove, duration);
+            toast.addEventListener('click', () => { clearTimeout(timer); remove(); });
+        }
+        function announce(message) { srLive.textContent = ''; setTimeout(() => { srLive.textContent = message; }, 50); }
+
+        // --- Modal (accessible: focus trap, ESC, restore focus) ---
+        const showModal = (title, message, onConfirm) => {
+             modalTitle.textContent = title;
+             modalMessage.textContent = message;
+             confirmCallback = onConfirm;
+             lastFocusedBeforeModal = document.activeElement;
+             confirmationModal.classList.remove('hidden');
+             confirmationModal.classList.add('modal-backdrop-enter');
+             modalContent.classList.add('modal-card-enter');
+             modalConfirm.focus();
+         };
+        const hideModal = () => {
+             confirmationModal.classList.add('hidden');
+             confirmationModal.classList.remove('modal-backdrop-enter');
+             modalContent.classList.remove('modal-card-enter');
+             confirmCallback = null;
+             if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === 'function') {
+                 lastFocusedBeforeModal.focus();
+             }
+         };
+        // Trap focus + ESC/click-outside handling for the modal.
+        document.addEventListener('keydown', (e) => {
+            if (confirmationModal.classList.contains('hidden')) return;
+            if (e.key === 'Escape') { hideModal(); return; }
+            if (e.key === 'Tab') {
+                const focusables = [modalCancel, modalConfirm];
+                const first = focusables[0], last = focusables[focusables.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            }
+        });
+        confirmationModal.addEventListener('mousedown', (e) => { if (e.target === confirmationModal) hideModal(); });
+
+        // --- Theme toggle ---
+        function applyThemeIcon() {
+            const isDark = document.documentElement.classList.contains('dark');
+            themeToggle.innerHTML = isDark
+                ? '<i class="fas fa-sun" aria-hidden="true"></i>'
+                : '<i class="fas fa-moon" aria-hidden="true"></i>';
+            themeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+        }
+        themeToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            try { localStorage.setItem('theme', isDark ? 'dark' : 'light'); } catch (e) {}
+            applyThemeIcon();
+        });
+        applyThemeIcon();
+
+        // Small helper: animate a stat element when its value changes.
+        function setStat(el, value) {
+            const prev = el.textContent;
+            el.textContent = value;
+            if (String(prev) !== String(value)) {
+                el.classList.remove('stat-pop');
+                void el.offsetWidth; // restart animation
+                el.classList.add('stat-pop');
+            }
+        }
+
+        // --- Calendar skeleton loader ---
+        function renderCalendarSkeleton() {
+            calendarGrid.innerHTML = '';
+            for (let i = 0; i < 35; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'calendar-day skeleton';
+                calendarGrid.appendChild(cell);
+            }
+        }
 
         // --- Core Logic Functions ---
         async function loadState() {
@@ -325,7 +490,6 @@
                 state.fetchedTotalDays = data.totalDaysLogged;
                 state.fetchedLastCompleted = data.lastCompletedDate;
                 state.fetchedLastStatus = data.lastLogStatus;
-                // Check if there is a log for today
                 const today = getTodayDateString();
                 let foundToday = false;
                 try {
@@ -339,7 +503,7 @@
                 console.log("State loaded from backend:", data, "isTodayLogged:", foundToday);
             } catch (error) {
                 console.error("Error loading state from backend:", error);
-                alert("Error loading data from server. Using default values.");
+                showToast("Could not load data from the server. Showing defaults.", 'error', 6000);
                 state.dailyGoal = 5; state.fetchedTotalStreak = 0; state.fetchedGoalStreak = 0;
                 state.fetchedTotalDays = 0; state.fetchedLastCompleted = null; state.fetchedLastStatus = null;
                 state.isTodayLogged = false;
@@ -354,24 +518,19 @@
 
         const updateUI = () => {
             dailyGoalInput.value = state.dailyGoal;
-            dailyGoalInput.disabled = state.currentSession.active; // Disable goal change during session
+            dailyGoalInput.disabled = state.currentSession.active;
 
             updateStreakCounters();
             updateTotalDaysCounter();
 
             const today = getTodayDateString();
-            // --- Check if there is a log for today ---
             let isTodayLogged = false;
-            // We'll check this by making a synchronous request to /api/session/today (not ideal, but ensures correctness)
-            // Instead, let's store a flag in state after loadState or after finishing a day
             if (typeof state.isTodayLogged === 'boolean') {
                 isTodayLogged = state.isTodayLogged;
             } else {
-                // fallback to old logic if not set
                 isTodayLogged = state.fetchedLastCompleted === today;
             }
 
-            // --- Button Visibility and Text ---
             if (state.currentSession.active) {
                 startLogButton.classList.add('hidden');
                 pauseResumeButton.classList.remove('hidden');
@@ -379,12 +538,12 @@
                 timerSection.classList.remove('hidden');
                 loggingArea.classList.remove('hidden');
                 if (state.currentSession.isPaused) {
-                    pauseResumeButton.innerHTML = `<i class="fas fa-play mr-2"></i>Resume`;
+                    pauseResumeButton.innerHTML = `<i class="fas fa-play mr-2" aria-hidden="true"></i>Resume`;
                     pausedOverlay.classList.remove('hidden');
                     addRowButton.disabled = true;
                     applicationTableBody.querySelectorAll('input, button').forEach(el => el.disabled = true);
                 } else {
-                    pauseResumeButton.innerHTML = `<i class="fas fa-pause mr-2"></i>Pause`;
+                    pauseResumeButton.innerHTML = `<i class="fas fa-pause mr-2" aria-hidden="true"></i>Pause`;
                     pausedOverlay.classList.add('hidden');
                     addRowButton.disabled = false;
                     applicationTableBody.querySelectorAll('input, button').forEach(el => el.disabled = false);
@@ -397,9 +556,9 @@
                 loggingArea.classList.add('hidden');
                 pausedOverlay.classList.add('hidden');
                 if (isTodayLogged) {
-                    startLogButton.innerHTML = `<i class="fas fa-redo mr-2"></i>Continue Logging`;
+                    startLogButton.innerHTML = `<i class="fas fa-redo mr-2" aria-hidden="true"></i>Continue Logging`;
                 } else {
-                    startLogButton.innerHTML = `<i class="fas fa-play mr-2"></i>Start Logging`;
+                    startLogButton.innerHTML = `<i class="fas fa-play mr-2" aria-hidden="true"></i>Start Logging`;
                 }
             }
             if (state.currentSession.active) {
@@ -409,22 +568,32 @@
             } else {
                 progressBarEl.style.width = `0%`;
                 progressTextEl.textContent = `0% (0 / ${state.dailyGoal})`;
+                progressBarWrap.setAttribute('aria-valuenow', '0');
             }
         };
-        const updateStreakCounters = () => { /* ... unchanged ... */
-            totalStreakCounterEl.textContent = state.fetchedTotalStreak;
-            goalStreakCounterEl.textContent = state.fetchedGoalStreak;
-         };
-        const updateTotalDaysCounter = () => { totalDaysLoggedEl.textContent = state.fetchedTotalDays; };
-        const updateProgressBar = () => { /* ... unchanged ... */
+        const updateStreakCounters = () => {
+            setStat(totalStreakCounterEl, state.fetchedTotalStreak);
+            setStat(goalStreakCounterEl, state.fetchedGoalStreak);
+        };
+        const updateTotalDaysCounter = () => { setStat(totalDaysLoggedEl, state.fetchedTotalDays); };
+        const updateProgressBar = () => {
             if (!state.currentSession.active) return;
             const goal = state.dailyGoal;
             const completed = state.currentSession.completedCount;
             const percentage = goal > 0 ? Math.min(100, Math.round((completed / goal) * 100)) : 0;
             progressBarEl.style.width = `${percentage}%`;
             progressTextEl.textContent = `${percentage}% (${completed} / ${goal})`;
-         };
-        const startTimer = () => { /* ... unchanged ... */
+            progressBarWrap.setAttribute('aria-valuenow', String(percentage));
+            // Turn the bar green once the goal is reached, for a satisfying reward cue.
+            if (percentage >= 100) {
+                progressBarEl.classList.remove('bg-indigo-600');
+                progressBarEl.classList.add('bg-green-500');
+            } else {
+                progressBarEl.classList.add('bg-indigo-600');
+                progressBarEl.classList.remove('bg-green-500');
+            }
+        };
+        const startTimer = () => {
             if (state.currentSession.timerInterval) clearInterval(state.currentSession.timerInterval);
             state.currentSession.startTime = Date.now();
             timerEl.textContent = formatTime(state.currentSession.elapsedSeconds);
@@ -434,17 +603,16 @@
                 timerEl.textContent = formatTime(state.currentSession.elapsedSeconds);
             }, 1000);
          };
-        const stopTimer = () => { /* ... unchanged ... */
+        const stopTimer = () => {
              if (state.currentSession.timerInterval) {
                 clearInterval(state.currentSession.timerInterval);
                 state.currentSession.timerInterval = null;
                 const sessionDuration = Math.floor((Date.now() - state.currentSession.startTime) / 1000);
                 state.currentSession.baseElapsedSeconds += sessionDuration;
-                 state.currentSession.elapsedSeconds = state.currentSession.baseElapsedSeconds;
-                console.log("Timer stopped. Base seconds:", state.currentSession.baseElapsedSeconds);
+                state.currentSession.elapsedSeconds = state.currentSession.baseElapsedSeconds;
             }
          };
-        const resetCurrentSession = () => { /* ... unchanged ... */
+        const resetCurrentSession = () => {
              stopTimer();
              state.currentSession = {
                 active: false, isPaused: false, startTime: null, applications: [],
@@ -454,7 +622,7 @@
          };
 
         // --- Event Handlers ---
-        dailyGoalInput.addEventListener('change', async () => { /* ... unchanged ... */
+        dailyGoalInput.addEventListener('change', async () => {
              const newGoal = parseInt(dailyGoalInput.value, 10);
             if (newGoal > 0 && !isNaN(newGoal)) {
                 const previousGoal = state.dailyGoal;
@@ -469,28 +637,28 @@
                     if (!response.ok) throw new Error('Failed to update goal on server');
                     const data = await response.json();
                     state.dailyGoal = data.dailyGoal;
-                    console.log("Goal updated successfully on server");
+                    showToast(`Daily goal set to ${data.dailyGoal}.`, 'success');
                 } catch (error) {
                     console.error("Error updating goal:", error);
-                    alert("Failed to update goal on the server. Reverting.");
+                    showToast("Failed to update goal on the server. Reverting.", 'error');
                     state.dailyGoal = previousGoal;
                     dailyGoalInput.value = previousGoal;
                     updateProgressBar();
                 }
             } else {
                 dailyGoalInput.value = state.dailyGoal;
-                alert("Please enter a valid number greater than 0 for the daily goal.");
+                showToast("Please enter a number greater than 0 for the daily goal.", 'error');
             }
         });
 
-        // --- Modified Start/Continue Logging Handler ---
         startLogButton.addEventListener('click', async () => {
-            if (state.currentSession.active) { alert("Session already active!"); return; }
+            if (state.currentSession.active) { showToast("A logging session is already active.", 'info'); return; }
             const today = getTodayDateString();
             let completedTodayCount = 0;
             let elapsedTodaySeconds = 0;
             let applicationsToday = [];
             let foundToday = false;
+            startLogButton.disabled = true;
             try {
                 const response = await fetch(`${API_BASE_URL}/session/${today}`);
                 if (response.ok) {
@@ -506,9 +674,10 @@
                 }
             } catch (error) {
                 console.error("Error checking for existing session:", error);
-                alert("Could not check for existing session data. Starting fresh.");
+                showToast("Could not check for existing session data. Starting fresh.", 'error');
+            } finally {
+                startLogButton.disabled = false;
             }
-            // Only allow continue if foundToday, else always start fresh
             state.currentSession.active = true;
             state.currentSession.isPaused = false;
             if (foundToday) {
@@ -523,7 +692,6 @@
                 state.currentSession.baseElapsedSeconds = elapsedTodaySeconds;
                 state.currentSession.elapsedSeconds = elapsedTodaySeconds;
             } else {
-                // Always start with empty session for today
                 state.currentSession.applications = [];
                 state.currentSession.completedCount = 0;
                 state.currentSession.baseElapsedSeconds = 0;
@@ -533,30 +701,40 @@
             startTimer();
             updateUI();
             updateProgressBar();
+            announce(foundToday ? 'Resumed today\'s logging session.' : 'Started a new logging session.');
+            // Scroll the logging area into view and focus the first input if present.
+            loggingArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const firstInput = applicationTableBody.querySelector('input');
+            if (firstInput) firstInput.focus();
         });
 
-        pauseResumeButton.addEventListener('click', () => { /* ... unchanged ... */
+        pauseResumeButton.addEventListener('click', () => {
              if (!state.currentSession.active) return;
             state.currentSession.isPaused = !state.currentSession.isPaused;
-            if (state.currentSession.isPaused) { stopTimer(); console.log("Session Paused"); }
-            else { startTimer(); console.log("Session Resumed"); }
+            if (state.currentSession.isPaused) { stopTimer(); }
+            else { startTimer(); }
             updateUI();
+            announce(state.currentSession.isPaused ? 'Session paused.' : 'Session resumed.');
         });
 
         addRowButton.addEventListener('click', () => {
             if (!state.currentSession.active || state.currentSession.isPaused) return;
-            const newId = Date.now() + Math.random(); // Ensure unique ID
+            const newId = Date.now() + Math.random();
             state.currentSession.applications.push({
-                id: newId, jobName: '', company: '', resume: '', done: false // New rows start as not done
+                id: newId, jobName: '', company: '', resume: '', done: false
             });
             renderApplicationTable();
+            // Focus the first input of the newly added row for fast keyboard entry.
+            const rows = applicationTableBody.querySelectorAll('tr');
+            const lastRow = rows[rows.length - 1];
+            if (lastRow) { const input = lastRow.querySelector('input'); if (input) input.focus(); }
         });
 
-        applicationTableBody.addEventListener('change', (e) => { /* ... unchanged ... */
-            if (state.currentSession.isPaused) return; // Prevent changes when paused
+        applicationTableBody.addEventListener('input', (e) => {
+            if (state.currentSession.isPaused) return;
             if (e.target.classList.contains('table-input')) {
                 const row = e.target.closest('tr');
-                const appId = parseFloat(row.dataset.id); // Use parseFloat for potential float IDs
+                const appId = parseFloat(row.dataset.id);
                 const field = e.target.dataset.field;
                 const appIndex = state.currentSession.applications.findIndex(app => app.id === appId);
                 if (appIndex !== -1 && field) {
@@ -565,37 +743,51 @@
             }
         });
 
-        applicationTableBody.addEventListener('click', (e) => { /* Mark as Done */
+        applicationTableBody.addEventListener('click', (e) => {
             if (state.currentSession.isPaused) return;
+
+            // Remove a row
+            const removeButton = e.target.closest('.remove-button');
+            if (removeButton && state.currentSession.active) {
+                const row = removeButton.closest('tr');
+                const appId = parseFloat(row.dataset.id);
+                state.currentSession.applications = state.currentSession.applications.filter(a => a.id !== appId);
+                state.currentSession.completedCount = state.currentSession.applications.filter(a => a.done).length;
+                renderApplicationTable();
+                updateProgressBar();
+                return;
+            }
+
+            // Toggle done
             const doneButton = e.target.closest('.done-button');
             if (doneButton && state.currentSession.active) {
                 const row = doneButton.closest('tr');
-                const appId = parseFloat(row.dataset.id); // Use parseFloat
+                const appId = parseFloat(row.dataset.id);
                 const appIndex = state.currentSession.applications.findIndex(app => app.id === appId);
                 if (appIndex !== -1) {
                     const app = state.currentSession.applications[appIndex];
-                    const wasDone = app.done;
-                    app.done = !app.done; // Toggle done status
-
-                    // --- IMPORTANT: Recalculate completedCount based on ALL 'done' apps ---
+                    const goalWasMet = state.currentSession.completedCount >= state.dailyGoal;
+                    app.done = !app.done;
                     state.currentSession.completedCount = state.currentSession.applications.filter(a => a.done).length;
-
-                    // Update UI for this row
                     doneButton.innerHTML = app.done ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="far fa-circle text-gray-400"></i>';
+                    doneButton.setAttribute('aria-pressed', String(app.done));
                     doneButton.classList.toggle('text-green-500', app.done);
                     row.classList.toggle('bg-green-50', app.done);
-
-                    updateProgressBar(); // Update progress bar with new total count
+                    updateProgressBar();
+                    // Celebrate the moment the goal is first reached this session.
+                    const goalNowMet = state.currentSession.completedCount >= state.dailyGoal;
+                    if (goalNowMet && !goalWasMet) {
+                        showToast(`Daily goal reached! ${state.currentSession.completedCount}/${state.dailyGoal} done.`, 'success');
+                        announce('Daily goal reached.');
+                    }
                 }
             }
         });
 
-        // UPDATED: Handle Finish Day - Send applications list
         finishDayButton.addEventListener('click', async () => {
             if (!state.currentSession.active) return;
             stopTimer();
 
-            // Send ALL applications currently in the session state
             const applicationsToSend = state.currentSession.applications.map(app => ({
                  jobName: app.jobName,
                  company: app.company,
@@ -603,14 +795,15 @@
             }));
 
             const payload = {
-                // Send the count of ONLY the 'done' applications
                 completedCount: state.currentSession.applications.filter(a => a.done).length,
                 elapsedSeconds: state.currentSession.elapsedSeconds,
-                applications: applicationsToSend // Send the list of all applications in session
+                applications: applicationsToSend
             };
 
+            finishDayButton.disabled = true;
+            const originalFinishHtml = finishDayButton.innerHTML;
+            finishDayButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2" aria-hidden="true"></i>Saving...';
             try {
-                console.log("Sending finish day request to backend with payload:", payload);
                 const response = await fetch(`${API_BASE_URL}/finish_day`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -618,10 +811,9 @@
                 });
                 if (!response.ok) {
                      const errorData = await response.json().catch(() => ({}));
-                     throw new Error(`Failed to finish day: ${errorData.error || response.statusText} (Status: ${response.status})`);
+                     throw new Error(`${errorData.error || response.statusText} (Status: ${response.status})`);
                 }
                 const data = await response.json();
-                console.log("Finish day response:", data);
 
                 state.fetchedTotalStreak = data.totalStreak;
                 state.fetchedGoalStreak = data.goalStreak;
@@ -629,7 +821,8 @@
                 state.fetchedLastCompleted = data.lastCompletedDate;
                 state.fetchedLastStatus = data.lastLogStatus;
 
-                alert(data.message || `Day log updated successfully!`);
+                showToast(data.message || 'Day logged successfully!', 'success');
+                announce('Day logged.');
 
                 resetCurrentSession();
                 updateUI();
@@ -638,36 +831,39 @@
 
             } catch (error) {
                 console.error("Error finishing day:", error);
-                alert(`Error logging day: ${error.message}. Please try again.`);
+                showToast(`Error logging day: ${error.message}`, 'error', 6000);
                  state.currentSession.isPaused = true;
                  updateUI();
+            } finally {
+                finishDayButton.disabled = false;
+                finishDayButton.innerHTML = originalFinishHtml;
             }
         });
 
-        resetButton.addEventListener('click', () => { /* ... unchanged ... */
+        resetButton.addEventListener('click', () => {
              showModal(
                 'Reset All Server Data',
-                'Are you sure you want to erase ALL your progress, streak, and logged days from the server? This action cannot be undone.',
+                'Are you sure you want to erase ALL your progress, streaks, and logged days from the server? This action cannot be undone.',
                 async () => {
-                    console.log("Sending reset request to backend...");
+                    modalConfirm.disabled = true;
                     try {
                         const response = await fetch(`${API_BASE_URL}/reset`, { method: 'DELETE' });
                         if (!response.ok) {
                              const errorData = await response.json().catch(() => ({}));
-                             throw new Error(`Failed to reset data: ${errorData.error || response.statusText}`);
+                             throw new Error(`${errorData.error || response.statusText}`);
                         }
-                        console.log("Reset successful on server.");
                         await loadState();
                         resetCurrentSession();
                         hideModal();
-                        alert("All data has been reset on the server.");
-                        // Hide past log display after reset
+                        showToast("All data has been reset.", 'success');
                         pastLogCardContainer.classList.add('hidden');
                         logSeparator.classList.add('hidden');
                     } catch (error) {
                         console.error("Error resetting data:", error);
                         hideModal();
-                        alert(`Failed to reset data on the server: ${error.message}`);
+                        showToast(`Failed to reset data: ${error.message}`, 'error', 6000);
+                    } finally {
+                        modalConfirm.disabled = false;
                     }
                 }
             );
@@ -676,29 +872,48 @@
         modalConfirm.addEventListener('click', () => { if (typeof confirmCallback === 'function') confirmCallback(); });
 
         // --- Rendering Functions ---
-        // UPDATED: Render application table based on state.currentSession.applications
         const renderApplicationTable = () => {
-            applicationTableBody.innerHTML = ''; // Clear existing rows
+            applicationTableBody.innerHTML = '';
             if (!state.currentSession.active) return;
 
-            state.currentSession.applications.forEach(app => {
-                const row = document.createElement('tr');
-                row.dataset.id = app.id; // Use local unique ID for dataset
-                row.classList.toggle('bg-green-50', app.done);
+            // Toggle empty state vs. table.
+            if (state.currentSession.applications.length === 0) {
+                appsEmptyState.classList.remove('hidden');
+                appsTableWrap.classList.add('hidden');
+                return;
+            }
+            appsEmptyState.classList.add('hidden');
+            appsTableWrap.classList.remove('hidden');
 
+            const disabled = state.currentSession.isPaused ? 'disabled' : '';
+            state.currentSession.applications.forEach((app, idx) => {
+                const row = document.createElement('tr');
+                row.dataset.id = app.id;
+                row.classList.toggle('bg-green-50', app.done);
+                const jobVal = sanitize(app.jobName) === 'N/A' ? '' : sanitize(app.jobName);
+                const companyVal = sanitize(app.company) === 'N/A' ? '' : sanitize(app.company);
+                const resumeVal = sanitize(app.resume) === 'N/A' ? '' : sanitize(app.resume);
                 row.innerHTML = `
                     <td class="px-3 py-2 whitespace-nowrap">
-                        <input type="text" data-field="jobName" value="${app.jobName || ''}" class="table-input" placeholder="e.g., Software Engineer" ${state.currentSession.isPaused ? 'disabled' : ''}>
+                        <label class="sr-only" for="job-${app.id}">Job or position for application ${idx + 1}</label>
+                        <input id="job-${app.id}" type="text" data-field="jobName" value="${jobVal}" class="table-input" placeholder="e.g., Software Engineer" ${disabled}>
                     </td>
                     <td class="px-3 py-2 whitespace-nowrap">
-                        <input type="text" data-field="company" value="${app.company || ''}" class="table-input" placeholder="e.g., Google" ${state.currentSession.isPaused ? 'disabled' : ''}>
+                        <label class="sr-only" for="company-${app.id}">Company for application ${idx + 1}</label>
+                        <input id="company-${app.id}" type="text" data-field="company" value="${companyVal}" class="table-input" placeholder="e.g., Google" ${disabled}>
                     </td>
                     <td class="px-3 py-2 whitespace-nowrap">
-                        <input type="text" data-field="resume" value="${app.resume || ''}" class="table-input" placeholder="e.g., v3_final.pdf" ${state.currentSession.isPaused ? 'disabled' : ''}>
+                        <label class="sr-only" for="resume-${app.id}">Resume used for application ${idx + 1}</label>
+                        <input id="resume-${app.id}" type="text" data-field="resume" value="${resumeVal}" class="table-input" placeholder="e.g., v3_final.pdf" ${disabled}>
                     </td>
                     <td class="px-3 py-2 text-center">
-                        <button class="done-button btn-icon ${app.done ? 'text-green-500' : 'text-gray-400'}" ${state.currentSession.isPaused ? 'disabled' : ''}>
+                        <button class="done-button btn-icon ${app.done ? 'text-green-500' : 'text-gray-400'}" type="button" aria-pressed="${app.done}" aria-label="Mark application ${idx + 1} as done" ${disabled}>
                             ${app.done ? '<i class="fas fa-check-circle"></i>' : '<i class="far fa-circle"></i>'}
+                        </button>
+                    </td>
+                    <td class="px-3 py-2 text-center">
+                        <button class="remove-button btn-icon text-gray-400 hover:text-red-500" type="button" aria-label="Remove application ${idx + 1}" ${disabled}>
+                            <i class="fas fa-xmark"></i>
                         </button>
                     </td>
                 `;
@@ -711,25 +926,23 @@
         let serverTime = null;
         let lastFetchLocal = null;
         let serverTz = '';
-        let serverDateObj = null; // <-- Store server date for calendar logic
-        let serverTodayString = null; // <-- Store server 'today' string (YYYY-MM-DD)
+        let serverDateObj = null;
+        let serverTodayString = null;
         function displayServerClock() {
             if (!serverTime) {
                 serverClockEl.textContent = 'Loading...';
                 return;
             }
-            // Calculate elapsed seconds since last fetch
             const now = new Date();
             const elapsed = Math.floor((now - lastFetchLocal) / 1000);
             const displayDate = new Date(serverTime.getTime() + elapsed * 1000);
-            // Format as: Friday, May 24, 2025 09:33:00 PM EDT
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
             const formatted = displayDate.toLocaleString('en-US', options);
             serverClockEl.textContent = `${formatted} ${serverTz}`;
         }
         async function fetchServerClock() {
             try {
-                serverClockEl.textContent = 'Loading...';
+                if (!serverTime) serverClockEl.textContent = 'Loading...';
                 const resp = await fetch(`${API_BASE_URL.replace('/api','')}/api/server_time`);
                 if (!resp.ok) throw new Error('Failed to fetch server time');
                 const data = await resp.json();
@@ -737,23 +950,25 @@
                 lastFetchLocal = new Date();
                 serverTz = data.tz;
                 serverDateObj = new Date(data.iso);
-                serverTodayString = data.date; // 'YYYY-MM-DD' from backend
+                serverTodayString = data.date;
                 displayServerClock();
             } catch (e) {
                 serverClockEl.textContent = 'Time unavailable';
             }
         }
+
         // --- Initialization ---
+        renderCalendarSkeleton();
         (async () => {
-            await fetchServerClock(); // Fetch server time first
+            await fetchServerClock();
             await loadState();
         })();
-        setInterval(displayServerClock, 1000); // update display every second
-        setInterval(fetchServerClock, 5 * 60 * 1000); // re-sync every 5 minutes
-        // --- Render Calendar: use serverDateObj for month/year/today ---
+        setInterval(displayServerClock, 1000);
+        setInterval(fetchServerClock, 5 * 60 * 1000);
+
+        // --- Render Calendar ---
         async function renderCalendar() {
-            calendarGrid.innerHTML = '';
-            // Use state.calendarDate for the displayed month/year
+            renderCalendarSkeleton();
             const refDate = state.calendarDate || (serverDateObj || new Date());
             const year = refDate.getFullYear();
             const month = refDate.getMonth();
@@ -765,102 +980,108 @@
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
                 monthLoggedDaysData = data.loggedDaysStatus || [];
-                console.log('Fetched calendar data:', monthLoggedDaysData);
             } catch (error) {
                 console.error('Error fetching calendar data:', error);
-                calendarGrid.innerHTML = '<div class="col-span-7 text-center text-red-500">Error loading calendar data.</div>';
+                calendarGrid.innerHTML = '<div class="col-span-7 text-center text-red-500 py-6"><i class="fas fa-triangle-exclamation mr-1"></i>Couldn\'t load calendar data.</div>';
                 return;
             }
+            calendarGrid.innerHTML = '';
             const firstDayOfMonth = new Date(year, month, 1);
             const lastDayOfMonth = new Date(year, month + 1, 0);
             const daysInMonth = lastDayOfMonth.getDate();
             const startDayOfWeek = firstDayOfMonth.getDay();
-            // Use server's today for highlight
             const todayString = getTodayDateString();
-            // Days from previous month
             const lastDayOfPrevMonth = new Date(year, month, 0).getDate();
+            const monthLabel = refDate.toLocaleString('default', { month: 'long' });
+
             for (let i = 0; i < startDayOfWeek; i++) {
                 const day = lastDayOfPrevMonth - startDayOfWeek + 1 + i;
                 const cell = document.createElement('div');
                 cell.classList.add('calendar-day', 'other-month');
+                cell.setAttribute('role', 'gridcell');
+                cell.setAttribute('aria-hidden', 'true');
                 cell.textContent = day;
                 calendarGrid.appendChild(cell);
             }
-            // Days of the current month
             for (let day = 1; day <= daysInMonth; day++) {
                 const cell = document.createElement('div');
-                cell.className = 'calendar-day'; // Reset classes
+                cell.className = 'calendar-day';
+                cell.setAttribute('role', 'gridcell');
                 cell.textContent = day;
                 const currentDateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const logData = monthLoggedDaysData.find(log => log.date === currentDateString);
                 const logStatus = logData ? logData.status : null;
                 const isToday = currentDateString === todayString;
                 cell.dataset.date = currentDateString;
-                // --- Always add both classes if needed ---
-                if (logStatus === 'complete') cell.classList.add('logged');
-                if (logStatus === 'incomplete') cell.classList.add('incomplete');
+
+                let statusLabel = 'no activity';
+                if (logStatus === 'complete') { cell.classList.add('logged'); statusLabel = 'goal met'; }
+                if (logStatus === 'incomplete') { cell.classList.add('incomplete'); statusLabel = 'logged, goal not met'; }
                 if (isToday) cell.classList.add('today');
-                if (!logStatus && !cell.classList.contains('other-month')) {
-                    cell.classList.remove('cursor-pointer', 'hover:bg-gray-100');
-                } else if (cell.classList.contains('other-month')) {
-                    cell.classList.remove('cursor-pointer', 'hover:bg-gray-100');
+
+                cell.setAttribute('aria-label', `${monthLabel} ${day}, ${year}: ${statusLabel}${isToday ? ', today' : ''}`);
+
+                // Only logged days are interactive (they open the past-log view).
+                if (logStatus === 'complete' || logStatus === 'incomplete') {
+                    cell.classList.add('clickable');
+                    cell.setAttribute('tabindex', '0');
+                    cell.setAttribute('role', 'button');
                 }
                 calendarGrid.appendChild(cell);
             }
-            // Days from next month
             const totalCells = startDayOfWeek + daysInMonth;
             const remainingCells = (7 - (totalCells % 7)) % 7;
             for (let i = 1; i <= remainingCells; i++) {
                 const cell = document.createElement('div');
                 cell.classList.add('calendar-day', 'other-month');
+                cell.setAttribute('role', 'gridcell');
+                cell.setAttribute('aria-hidden', 'true');
                 cell.textContent = i;
                 calendarGrid.appendChild(cell);
             }
         }
 
-        // UPDATED: Function to display past logs in a styled table
         function displayPastLogs(logData) {
-            // Use the container for visibility control
-            pastLogCardContainer.innerHTML = ''; // Clear previous content
-            pastLogCardContainer.classList.remove('hidden'); // Make card container visible
-            logSeparator.classList.remove('hidden'); // Show the separator line
+            pastLogCardContainer.innerHTML = '';
+            pastLogCardContainer.classList.remove('hidden');
+            logSeparator.classList.remove('hidden');
 
             const dateStr = logData?.log_date || 'selected date';
             const status = logData?.status || 'N/A';
             const applications = logData?.applications || [];
 
-            // Determine status text and class
-            let statusText = status === 'N/A' ? status : status.charAt(0).toUpperCase() + status.slice(1); // Capitalize if not N/A
-            let statusClass = 'status-na'; // Default class
-            if (status === 'complete') {
-                statusClass = 'status-complete';
-            } else if (status === 'incomplete') {
-                statusClass = 'status-incomplete';
-            }
+            let statusText = status === 'N/A' ? status : status.charAt(0).toUpperCase() + status.slice(1);
+            let statusClass = 'status-na';
+            if (status === 'complete') statusClass = 'status-complete';
+            else if (status === 'incomplete') statusClass = 'status-incomplete';
 
-            // Build the heading with styled status
             let tableHTML = `
-                <div id="past-log-display"> <h3 class="text-xl font-semibold mb-4 text-gray-900"> Logs for ${dateStr}
-                        <span class="text-lg font-medium ml-2"> (Status: <span class="${statusClass}">${statusText}</span>)</span>
-                    </h3>
+                <div id="past-log-display">
+                    <div class="flex items-center justify-between gap-2 mb-4 flex-wrap">
+                        <h3 class="text-xl font-semibold">Logs for ${sanitize(dateStr)}
+                            <span class="text-base font-medium ml-1">(Status: <span class="${statusClass}">${sanitize(statusText)}</span>)</span>
+                        </h3>
+                        <button id="close-past-log" class="btn-icon" type="button" aria-label="Close logs view"><i class="fas fa-xmark"></i></button>
+                    </div>
             `;
 
             if (applications.length === 0) {
-                tableHTML += `<p class="text-base text-gray-600 italic mt-4 text-center">No applications logged for this day.</p>`; // Styled 'no logs' message
+                tableHTML += `<p class="text-base text-gray-500 italic mt-4 text-center"><i class="fas fa-inbox mr-1" aria-hidden="true"></i>No applications logged for this day.</p>`;
             } else {
                 tableHTML += `
-                    <div class="overflow-x-auto rounded-lg shadow-md border border-gray-300"> <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-100"> <tr>
-                                    <th scope="col" class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Job/Position</th> <th scope="col" class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Company</th>
+                    <div class="overflow-x-auto rounded-lg shadow-sm border border-gray-200">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Job/Position</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Company</th>
                                     <th scope="col" class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Resume Used</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
+                            <tbody class="bg-white dark:bg-transparent divide-y divide-gray-200">
                 `;
-
                 applications.forEach((app, index) => {
-                    // Apply alternating row color using JS logic
-                    const rowClass = index % 2 === 0 ? '' : 'bg-gray-50'; // Tailwind class for light gray background
+                    const rowClass = index % 2 === 0 ? '' : 'bg-gray-50';
                     tableHTML += `
                         <tr class="${rowClass}">
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${sanitize(app.jobName)}</td>
@@ -869,72 +1090,72 @@
                         </tr>
                     `;
                 });
-                tableHTML += `
-                            </tbody>
-                        </table>
-                    </div>
-                `;
+                tableHTML += `</tbody></table></div>`;
             }
-            tableHTML += `</div>`; // Close inner div
-            pastLogCardContainer.innerHTML = tableHTML; // Set content of the card container
+            tableHTML += `</div>`;
+            pastLogCardContainer.innerHTML = tableHTML;
+            const closeBtn = document.getElementById('close-past-log');
+            if (closeBtn) closeBtn.addEventListener('click', () => {
+                pastLogCardContainer.classList.add('hidden');
+                logSeparator.classList.add('hidden');
+            });
+            pastLogCardContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        // --- NEW: Event Listener for Calendar Clicks ---
-        calendarGrid.addEventListener('click', async (e) => {
-             // Ensure logging session is not active before allowing view
+        async function openPastLog(clickedCell) {
             if (state.currentSession.active) {
-                 alert("Please finish or pause the current logging session before viewing past logs.");
-                 return;
+                showToast("Finish or pause the current session before viewing past logs.", 'info');
+                return;
             }
-
-            const clickedCell = e.target.closest('.calendar-day');
-            // Check if it's a valid day cell within the current month and has a date
-            if (clickedCell && !clickedCell.classList.contains('other-month') && clickedCell.dataset.date) {
-                const dateStr = clickedCell.dataset.date;
-                 // Check if the day was actually logged (has red or blue circle)
-                 if (!clickedCell.classList.contains('logged') && !clickedCell.classList.contains('incomplete')) {
-                     console.log(`Day ${dateStr} was not logged. Clearing display.`);
-                     pastLogCardContainer.innerHTML = ''; // Clear card container
-                     pastLogCardContainer.classList.add('hidden'); // Hide card container
-                     logSeparator.classList.add('hidden'); // Hide separator
-                     return; // Don't fetch if not logged
-                 }
-
-                console.log(`Fetching logs for date: ${dateStr}`);
-                try {
-                    const response = await fetch(`${API_BASE_URL}/logs/${dateStr}`);
-                    if (!response.ok) {
-                         if(response.status === 404) {
-                              console.warn(`No log details found for ${dateStr} on backend.`);
-                              displayPastLogs({ log_date: dateStr, applications: [] }); // Show empty state
-                         } else {
-                             throw new Error(`HTTP error fetching logs! status: ${response.status}`);
-                         }
-                    } else {
-                         const logDetails = await response.json();
-                         console.log("Received log details:", logDetails);
-                         displayPastLogs(logDetails); // Display the fetched logs
-                    }
-                } catch (error) {
-                    console.error("Error fetching past logs:", error);
-                    pastLogCardContainer.innerHTML = `<div id="past-log-display"><p class="text-red-500">Error fetching logs for ${dateStr}.</p></div>`; // Show error inside card
-                    pastLogCardContainer.classList.remove('hidden');
-                    logSeparator.classList.remove('hidden'); // Ensure separator is visible even on error display
+            if (!clickedCell || clickedCell.classList.contains('other-month') || !clickedCell.dataset.date) return;
+            const dateStr = clickedCell.dataset.date;
+            if (!clickedCell.classList.contains('logged') && !clickedCell.classList.contains('incomplete')) {
+                pastLogCardContainer.innerHTML = '';
+                pastLogCardContainer.classList.add('hidden');
+                logSeparator.classList.add('hidden');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/logs/${dateStr}`);
+                if (!response.ok) {
+                     if (response.status === 404) {
+                          displayPastLogs({ log_date: dateStr, applications: [] });
+                     } else {
+                         throw new Error(`HTTP error fetching logs! status: ${response.status}`);
+                     }
+                } else {
+                     const logDetails = await response.json();
+                     displayPastLogs(logDetails);
                 }
+            } catch (error) {
+                console.error("Error fetching past logs:", error);
+                pastLogCardContainer.innerHTML = `<div id="past-log-display"><p class="text-red-500"><i class="fas fa-triangle-exclamation mr-1"></i>Error fetching logs for ${sanitize(dateStr)}.</p></div>`;
+                pastLogCardContainer.classList.remove('hidden');
+                logSeparator.classList.remove('hidden');
+            }
+        }
+
+        calendarGrid.addEventListener('click', (e) => {
+            openPastLog(e.target.closest('.calendar-day'));
+        });
+        // Keyboard activation for calendar cells.
+        calendarGrid.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const cell = e.target.closest('.calendar-day.clickable');
+                if (cell) { e.preventDefault(); openPastLog(cell); }
             }
         });
 
-
-        prevMonthButton.addEventListener('click', async () => { /* ... unchanged ... */
+        prevMonthButton.addEventListener('click', async () => {
             state.calendarDate.setMonth(state.calendarDate.getMonth() - 1);
-            pastLogCardContainer.classList.add('hidden'); // Hide past logs when changing month
-            logSeparator.classList.add('hidden'); // Hide separator
+            pastLogCardContainer.classList.add('hidden');
+            logSeparator.classList.add('hidden');
             await renderCalendar();
          });
-        nextMonthButton.addEventListener('click', async () => { /* ... unchanged ... */
+        nextMonthButton.addEventListener('click', async () => {
             state.calendarDate.setMonth(state.calendarDate.getMonth() + 1);
-            pastLogCardContainer.classList.add('hidden'); // Hide past logs when changing month
-            logSeparator.classList.add('hidden'); // Hide separator
+            pastLogCardContainer.classList.add('hidden');
+            logSeparator.classList.add('hidden');
             await renderCalendar();
          });
 
@@ -942,34 +1163,32 @@
         exportLogsButton.addEventListener('click', async () => {
             const format = exportFormatSelect.value;
             const url = `${API_BASE_URL}/export_logs?format=${format}`;
+            exportLogsButton.disabled = true;
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('Failed to export logs');
+                let blob, filename;
                 if (format === 'csv') {
-                    const blob = await response.blob();
-                    const downloadUrl = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = 'jobtracker_logs.csv';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(downloadUrl);
+                    blob = await response.blob();
+                    filename = 'jobtracker_logs.csv';
                 } else {
-                    // JSON
                     const data = await response.json();
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                    const downloadUrl = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = 'jobtracker_logs.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(downloadUrl);
+                    blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    filename = 'jobtracker_logs.json';
                 }
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(downloadUrl);
+                showToast(`Logs exported as ${format.toUpperCase()}.`, 'success');
             } catch (error) {
-                alert('Failed to export logs: ' + error.message);
+                showToast('Failed to export logs: ' + error.message, 'error', 6000);
+            } finally {
+                exportLogsButton.disabled = false;
             }
         });
 
