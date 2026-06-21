@@ -91,8 +91,8 @@ this constant.
   `app.py` and the timezone logic in `models.get_current_status()` both use
   `America/New_York` (via `zoneinfo`, falling back to `pytz`). Use these helpers
   rather than `date.today()` when determining the current day — `date.today()`
-  would use the container's local time and break streak logic. (The
-  `/api/debug_streaks` endpoint is the one place still using `date.today()`.)
+  would use the container's local time and break streak logic. (`get_eastern_today()`
+  now lives in `models.py` and is shared by `app.py`; `/api/debug_streaks` uses it too.)
 - **Two distinct streaks.** `totalStreak` = consecutive recent days with *any*
   finished log; `goalStreak` = consecutive recent days with `status='complete'`.
   Both are computed by walking backward from today in `get_current_status()`.
@@ -107,13 +107,33 @@ this constant.
 
 ## API endpoints (all under `/api`)
 
-- `GET /state` — current goal + streaks/status
-- `PUT /goal` — update daily goal (`{"goal": int}`)
+- `GET /health` — liveness/readiness probe (checks DB reachability)
+- `GET /state` — current goal + streaks/status (now also `currentMilestone`, `nextMilestone`)
+- `PUT /goal` — update daily goal (`{"goal": int}`); records a `GoalHistory` row on change
+- `GET /goal_history` — chronological list of goal changes
 - `GET /session/<YYYY-MM-DD>` — a day's log + applications (used to resume)
-- `POST /finish_day` — finish/log today (`completedCount`, `elapsedSeconds`, `applications[]`)
-- `GET /calendar_data?month=&year=` — per-day statuses for a month
-- `GET /logs/<YYYY-MM-DD>` — applications logged on a date
-- `GET /export_logs?format=csv|json` — export all logs
+- `POST /finish_day` — finish/log today (`completedCount`, `elapsedSeconds`, `applications[]`, optional `notes`)
+- `GET /calendar_data?month=&year=` — per-day statuses for a month (now includes `completedCount`)
+- `GET /logs/<YYYY-MM-DD>` — applications + notes logged on a date
+- `PUT /logs/<YYYY-MM-DD>` — edit a past day (count/elapsed/notes/applications); status recomputed vs current goal
+- `DELETE /logs/<YYYY-MM-DD>` — delete one day's log (cascades to its applications)
+- `GET /analytics` — aggregate stats (totals, averages, completion rate, best day, longest streak, per-weekday)
+- `GET /export_logs?format=csv|json` — export all logs (now includes `notes`)
 - `GET /server_time` — current Eastern time
-- `DELETE /reset` — wipe all data
-- `GET /debug_streaks` — debug dump of logs + computed streaks
+- `DELETE /reset` — wipe all data (now also clears `GoalHistory`)
+- `GET /debug_streaks` — debug dump of logs + computed streaks (now uses the Eastern helper)
+
+### Schema additions (require a fresh DB / volume reset)
+The schema is created via `db.create_all()` with **no migration tooling**, so new
+columns/tables only materialize on an empty database. The additive changes below
+are backward-tolerant (nullable / new table) but won't appear on an existing
+volume until you `docker-compose down -v` (wipes the DB) and bring the stack back up:
+- `DailyLog.notes` (nullable `Text`) — optional per-day note.
+- `GoalHistory` table — records each daily-goal change.
+
+### Tests
+A lightweight, optional test suite lives in `backend/tests/` and runs against an
+in-memory SQLite DB (no Postgres needed). It is **not** part of any build step:
+```bash
+cd backend && pip install -r requirements-dev.txt && python -m pytest
+```

@@ -1,0 +1,5 @@
+# Dev/test-only dependencies. NOT installed in the Docker runtime image.
+# Install with:  pip install -r requirements-dev.txt
+# Run tests from backend/ with:  python -m pytest
+-r requirements.txt
+pytest
