@@ -1,4 +1,11 @@
+# Python
 __pycache__/
 *.pyc
 backend/venv/
 .pytest_cache/
+
+# Claude Code harness worktrees
+.claude/
+
+# OS
+.DS_Store
