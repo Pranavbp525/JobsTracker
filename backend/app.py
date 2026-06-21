@@ -3,10 +3,21 @@ import os
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from datetime import date, datetime, timedelta, timezone
+from sqlalchemy.orm import joinedload
 
 from database import db, init_app
-# Import ApplicationLog model as well
-from models import Setting, DailyLog, ApplicationLog, get_settings, get_current_status
+# Import models and domain helpers. get_eastern_today lives in models so app.py
+# and the streak math share one source of truth for "today" (US Eastern).
+from models import (
+    Setting,
+    DailyLog,
+    ApplicationLog,
+    GoalHistory,
+    get_settings,
+    get_current_status,
+    get_analytics,
+    get_eastern_today,
+)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -28,6 +39,21 @@ with app.app_context():
 
 # --- API Endpoints ---
 
+@app.route('/api/health', methods=['GET'])
+def health():
+    """ Lightweight liveness/readiness probe: confirms the API is up and the DB
+    is reachable. Useful for Docker healthchecks and uptime monitoring. """
+    db_ok = True
+    try:
+        # Cheap round-trip to the DB.
+        get_settings()
+    except Exception as e:
+        db_ok = False
+        app.logger.error(f"Health check DB error: {e}")
+    payload = {"status": "ok" if db_ok else "degraded", "database": db_ok}
+    return jsonify(payload), (200 if db_ok else 503)
+
+
 @app.route('/api/state', methods=['GET'])
 def get_state():
     """ Endpoint to get the current application state (unchanged logic). """
@@ -41,8 +67,8 @@ def get_state():
 
 @app.route('/api/goal', methods=['PUT'])
 def update_goal():
-    """ Endpoint to update the daily application goal (unchanged). """
-    data = request.get_json()
+    """ Endpoint to update the daily application goal. Records goal history. """
+    data = request.get_json(silent=True)
     if not data or 'goal' not in data: return jsonify({"error": "Missing 'goal'"}), 400
     try:
         new_goal = int(data.get('goal'))
@@ -50,6 +76,9 @@ def update_goal():
     except (TypeError, ValueError): return jsonify({"error": "Invalid goal value"}), 400
     try:
         settings = get_settings()
+        # Only record a history entry when the goal actually changes.
+        if settings.daily_goal != new_goal:
+            db.session.add(GoalHistory(daily_goal=new_goal))
         settings.daily_goal = new_goal
         db.session.commit()
         return jsonify({"dailyGoal": settings.daily_goal})
@@ -58,7 +87,7 @@ def update_goal():
         app.logger.error(f"Error updating goal: {e}")
         return jsonify({"error": "Failed to update goal"}), 500
 
-# --- UPDATED Endpoint: Get session data including applications ---
+# --- Get session data including applications ---
 @app.route('/api/session/<string:log_date_str>', methods=['GET'])
 def get_session_data(log_date_str):
     """
@@ -71,20 +100,24 @@ def get_session_data(log_date_str):
         return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
 
     try:
-        # Use joinedload to efficiently fetch related applications
+        # Use joinedload to efficiently fetch related applications.
+        # NOTE: joinedload is imported from sqlalchemy.orm (it is NOT an
+        # attribute of the Flask-SQLAlchemy `db` object, which previously raised
+        # an AttributeError here).
         log_entry = DailyLog.query.options(
-            db.joinedload(DailyLog.applications)
+            joinedload(DailyLog.applications)
         ).get(log_date)
 
         if log_entry:
             # Convert application logs to dictionaries
-            applications_data = [app.to_dict() for app in log_entry.applications]
+            applications_data = [a.to_dict() for a in log_entry.applications]
             return jsonify({
                 "found": True,
                 "log_date": log_entry.log_date.isoformat(),
                 "status": log_entry.status,
                 "completed_count": log_entry.completed_count,
                 "elapsed_seconds": log_entry.elapsed_seconds,
+                "notes": log_entry.notes,
                 "applications": applications_data # Include applications list
             })
         else:
@@ -93,7 +126,7 @@ def get_session_data(log_date_str):
         app.logger.error(f"Error fetching session data for {log_date_str}: {e}")
         return jsonify({"error": "Failed to fetch session data"}), 500
 
-# --- UPDATED Endpoint: Finish Day (now saves applications) ---
+# --- Finish Day (saves applications) ---
 @app.route('/api/finish_day', methods=['POST'])
 def finish_day():
     """
@@ -101,11 +134,12 @@ def finish_day():
     Accepts JSON: {
         "completedCount": <int>,
         "elapsedSeconds": <int>,
-        "applications": [ { "jobName": "...", "company": "...", "resume": "..." }, ... ]
+        "applications": [ { "jobName": "...", "company": "...", "resume": "..." }, ... ],
+        "notes": <str optional>
     }
     """
     today = get_eastern_today()
-    data = request.get_json()
+    data = request.get_json(silent=True)
 
     # Validate incoming data
     if not data or 'completedCount' not in data or 'elapsedSeconds' not in data or 'applications' not in data:
@@ -122,6 +156,10 @@ def finish_day():
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid completedCount or elapsedSeconds."}), 400
 
+    notes = data.get('notes')
+    if notes is not None and not isinstance(notes, str):
+        return jsonify({"error": "'notes' must be a string."}), 400
+
     try:
         settings = get_settings()
         daily_goal = settings.daily_goal
@@ -129,43 +167,45 @@ def finish_day():
 
         # --- UPSERT DailyLog ---
         existing_log = DailyLog.query.get(today)
+        was_update = existing_log is not None
         if existing_log:
             existing_log.status = status
             existing_log.completed_count = completed_count
             existing_log.elapsed_seconds = elapsed_seconds
-            print(f"Updating DailyLog for {today}")
+            if notes is not None:
+                existing_log.notes = notes
             # --- Delete existing ApplicationLogs for this date ---
             # This ensures the stored applications match the finished session exactly
             ApplicationLog.query.filter_by(log_date=today).delete()
-            print(f"Deleted existing ApplicationLogs for {today}")
         else:
-            existing_log = DailyLog( # Assign to existing_log so we can add apps below
+            existing_log = DailyLog( # Assign so we can add apps below
                 log_date=today,
                 status=status,
                 completed_count=completed_count,
-                elapsed_seconds=elapsed_seconds
+                elapsed_seconds=elapsed_seconds,
+                notes=notes,
             )
             db.session.add(existing_log)
-            print(f"Inserting new DailyLog for {today}")
 
         # --- Insert new ApplicationLogs ---
         for app_data in applications_list:
-            # Basic validation of app_data if needed
+            if not isinstance(app_data, dict):
+                # Skip malformed entries rather than crashing the whole request.
+                continue
             new_app_log = ApplicationLog(
                 log_date=today, # Link to the current day's log
-                job_name=app_data.get('jobName'),
-                company=app_data.get('company'),
-                resume_used=app_data.get('resume')
+                job_name=(app_data.get('jobName') or None),
+                company=(app_data.get('company') or None),
+                resume_used=(app_data.get('resume') or None)
                 # 'done' status is implicit, not stored
             )
             db.session.add(new_app_log)
-        print(f"Inserted {len(applications_list)} ApplicationLogs for {today}")
 
         db.session.commit()
 
         status_data = get_current_status()
         return jsonify({
-            "message": f"Day log {'updated' if existing_log else 'created'} successfully with status: {status}",
+            "message": f"Day log {'updated' if was_update else 'created'} successfully with status: {status}",
             **status_data
         }), 200 # Use 200 OK for update/create consistency here
 
@@ -189,13 +229,16 @@ def get_calendar_data():
         start_date = date(year, month, 1)
         end_date = date(year, month + 1, 1) if month < 12 else date(year + 1, 1, 1)
         logs = DailyLog.query.filter( DailyLog.log_date >= start_date, DailyLog.log_date < end_date ).all()
-        logged_days_status = [{"date": log.log_date.isoformat(), "status": log.status} for log in logs]
+        logged_days_status = [
+            {"date": log.log_date.isoformat(), "status": log.status, "completedCount": log.completed_count}
+            for log in logs
+        ]
         return jsonify({"loggedDaysStatus": logged_days_status})
     except Exception as e:
         app.logger.error(f"Error fetching calendar data: {e}")
         return jsonify({"error": "Failed to fetch calendar data"}), 500
 
-# --- NEW Endpoint: Get application logs for a specific date ---
+# --- Get application logs for a specific date ---
 @app.route('/api/logs/<string:log_date_str>', methods=['GET'])
 def get_logs_for_date(log_date_str):
     """ Gets the list of applications logged on a specific date. """
@@ -207,15 +250,17 @@ def get_logs_for_date(log_date_str):
     try:
         # Query ApplicationLog directly for the given date
         app_logs = ApplicationLog.query.filter_by(log_date=log_date).order_by(ApplicationLog.timestamp).all()
-        applications_data = [app.to_dict() for app in app_logs]
+        applications_data = [a.to_dict() for a in app_logs]
 
         # Also fetch the summary status for context
         daily_log_summary = DailyLog.query.get(log_date)
         log_status = daily_log_summary.status if daily_log_summary else None
+        notes = daily_log_summary.notes if daily_log_summary else None
 
         return jsonify({
             "log_date": log_date_str,
             "status": log_status,
+            "notes": notes,
             "applications": applications_data
         })
     except Exception as e:
@@ -223,13 +268,133 @@ def get_logs_for_date(log_date_str):
         return jsonify({"error": "Failed to fetch logs for date"}), 500
 
 
+# --- NEW: Edit a past day's log (count / applications / notes) ---
+@app.route('/api/logs/<string:log_date_str>', methods=['PUT'])
+def update_logs_for_date(log_date_str):
+    """ Edit a previously logged day. Accepts any subset of:
+        { "completedCount": <int>, "elapsedSeconds": <int>,
+          "notes": <str>, "applications": [ {...} ] }
+    Status is recomputed against the current daily goal. If 'applications' is
+    provided it fully replaces the day's applications (same semantics as
+    finish_day). The day's log must already exist. """
+    try:
+        log_date = date.fromisoformat(log_date_str)
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Missing request body."}), 400
+
+    log_entry = DailyLog.query.get(log_date)
+    if not log_entry:
+        return jsonify({"error": "No log exists for that date."}), 404
+
+    try:
+        if 'completedCount' in data:
+            cc = int(data['completedCount'])
+            if cc < 0:
+                raise ValueError("completedCount cannot be negative.")
+            log_entry.completed_count = cc
+        if 'elapsedSeconds' in data:
+            es = int(data['elapsedSeconds'])
+            if es < 0:
+                raise ValueError("elapsedSeconds cannot be negative.")
+            log_entry.elapsed_seconds = es
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid completedCount or elapsedSeconds."}), 400
+
+    if 'notes' in data:
+        if data['notes'] is not None and not isinstance(data['notes'], str):
+            return jsonify({"error": "'notes' must be a string."}), 400
+        log_entry.notes = data['notes']
+
+    if 'applications' in data:
+        if not isinstance(data['applications'], list):
+            return jsonify({"error": "'applications' must be a list."}), 400
+        ApplicationLog.query.filter_by(log_date=log_date).delete()
+        for app_data in data['applications']:
+            if not isinstance(app_data, dict):
+                continue
+            db.session.add(ApplicationLog(
+                log_date=log_date,
+                job_name=(app_data.get('jobName') or None),
+                company=(app_data.get('company') or None),
+                resume_used=(app_data.get('resume') or None),
+            ))
+
+    try:
+        # Recompute status against the current goal.
+        settings = get_settings()
+        log_entry.status = 'complete' if log_entry.completed_count >= settings.daily_goal else 'incomplete'
+        db.session.commit()
+        return jsonify({"message": "Log updated.", **log_entry.to_dict(),
+                        **get_current_status()}), 200
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error updating logs for {log_date_str}: {e}")
+        return jsonify({"error": "Failed to update log."}), 500
+
+
+# --- NEW: Delete a single day's log entirely ---
+@app.route('/api/logs/<string:log_date_str>', methods=['DELETE'])
+def delete_logs_for_date(log_date_str):
+    """ Delete a day's DailyLog and its applications (cascade). Useful for
+    correcting a mistaken entry without wiping all data. """
+    try:
+        log_date = date.fromisoformat(log_date_str)
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+
+    log_entry = DailyLog.query.get(log_date)
+    if not log_entry:
+        return jsonify({"error": "No log exists for that date."}), 404
+
+    try:
+        # cascade="all, delete-orphan" on DailyLog.applications removes the
+        # child ApplicationLog rows when the parent is deleted.
+        db.session.delete(log_entry)
+        db.session.commit()
+        return jsonify({"message": f"Log for {log_date_str} deleted.",
+                        **get_current_status()}), 200
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting log for {log_date_str}: {e}")
+        return jsonify({"error": "Failed to delete log."}), 500
+
+
+# --- NEW: Analytics summary ---
+@app.route('/api/analytics', methods=['GET'])
+def analytics():
+    """ Aggregate stats across all logged days (totals, averages, completion
+    rate, best day, longest streak, per-weekday breakdown). """
+    try:
+        return jsonify(get_analytics()), 200
+    except Exception as e:
+        app.logger.error(f"Error computing analytics: {e}")
+        return jsonify({"error": "Failed to compute analytics"}), 500
+
+
+# --- NEW: Goal change history ---
+@app.route('/api/goal_history', methods=['GET'])
+def goal_history():
+    """ Returns the chronological history of daily-goal changes. """
+    try:
+        history = GoalHistory.query.order_by(GoalHistory.changed_at).all()
+        return jsonify({"history": [h.to_dict() for h in history]}), 200
+    except Exception as e:
+        app.logger.error(f"Error fetching goal history: {e}")
+        return jsonify({"error": "Failed to fetch goal history"}), 500
+
+
 @app.route('/api/reset', methods=['DELETE'])
 def reset_data():
-    """ Endpoint to delete all logs and reset settings (unchanged). """
+    """ Endpoint to delete all logs and reset settings. """
     try:
         # Order matters due to foreign key constraint: delete applications first
         db.session.query(ApplicationLog).delete()
         db.session.query(DailyLog).delete()
+        db.session.query(GoalHistory).delete()
         db.session.query(Setting).delete()
         db.session.commit()
         get_settings()
@@ -250,12 +415,13 @@ def export_logs():
     logs = DailyLog.query.order_by(DailyLog.log_date).all()
     export_data = []
     for log in logs:
-        applications = [app.to_dict() for app in log.applications]
+        applications = [a.to_dict() for a in log.applications]
         export_data.append({
             'log_date': log.log_date.isoformat(),
             'status': log.status,
             'completed_count': log.completed_count,
             'elapsed_seconds': log.elapsed_seconds,
+            'notes': log.notes,
             'applications': applications
         })
 
@@ -267,20 +433,22 @@ def export_logs():
         writer = csv.writer(si)
         # Header
         writer.writerow([
-            'log_date', 'status', 'completed_count', 'elapsed_seconds',
+            'log_date', 'status', 'completed_count', 'elapsed_seconds', 'notes',
             'jobName', 'company', 'resume'
         ])
         for log in export_data:
             if log['applications']:
-                for app in log['applications']:
+                for app_row in log['applications']:
                     writer.writerow([
                         log['log_date'], log['status'], log['completed_count'], log['elapsed_seconds'],
-                        app.get('jobName', ''), app.get('company', ''), app.get('resume', '')
+                        log.get('notes', '') or '',
+                        app_row.get('jobName', ''), app_row.get('company', ''), app_row.get('resume', '')
                     ])
             else:
                 # No applications for this day
                 writer.writerow([
-                    log['log_date'], log['status'], log['completed_count'], log['elapsed_seconds'], '', '', ''
+                    log['log_date'], log['status'], log['completed_count'], log['elapsed_seconds'],
+                    log.get('notes', '') or '', '', '', ''
                 ])
         output = si.getvalue()
         return Response(
@@ -296,18 +464,16 @@ def export_logs():
 
 @app.route('/api/server_time', methods=['GET'])
 def get_server_time():
-    # Use US Eastern Time
+    """ Current time in US Eastern. """
+    # Prefer the stdlib zoneinfo (Python 3.9+); fall back to pytz.
     try:
-        # Python 3.9+: use zoneinfo
+        from zoneinfo import ZoneInfo
         eastern = ZoneInfo('America/New_York')
-        now = datetime.now(eastern)
-        tz_abbr = now.tzname()
     except Exception:
-        # Fallback for pytz
         import pytz
         eastern = pytz.timezone('America/New_York')
-        now = datetime.now(eastern)
-        tz_abbr = now.tzname()
+    now = datetime.now(eastern)
+    tz_abbr = now.tzname()
     return jsonify({
         'iso': now.isoformat(),
         'date': now.strftime('%Y-%m-%d'),
@@ -318,30 +484,18 @@ def get_server_time():
 
 @app.route('/api/debug_streaks', methods=['GET'])
 def debug_streaks():
-    from models import DailyLog, get_current_status
-    from datetime import date
     logs = DailyLog.query.order_by(DailyLog.log_date).all()
     log_list = [
         {"log_date": log.log_date.isoformat(), "status": log.status} for log in logs
     ]
     streaks = get_current_status()
     return {
-        "backend_today": date.today().isoformat(),
+        # Use the shared Eastern helper so this matches the streak logic instead
+        # of the container's local clock (previously used date.today()).
+        "backend_today": get_eastern_today().isoformat(),
         "logs": log_list,
         "streaks": streaks
     }
-
-# --- Helper: Always get today in US Eastern Time ---
-def get_eastern_today():
-    from datetime import datetime
-    try:
-        from zoneinfo import ZoneInfo
-        eastern = ZoneInfo('America/New_York')
-        return datetime.now(eastern).date()
-    except Exception:
-        import pytz
-        eastern = pytz.timezone('America/New_York')
-        return datetime.now(eastern).date()
 
 # --- Main Execution ---
 if __name__ == '__main__':

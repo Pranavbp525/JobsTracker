@@ -29,4 +29,8 @@ def init_app(app):
     # Associate the SQLAlchemy instance with the Flask app
     db.init_app(app)
 
-    print(f"Database initialized with URL: {db_url.split('@')[1]}") # Print host/db for confirmation, hide user/pass
+    # Print host/db for confirmation while hiding any user/pass. Guard against
+    # URLs without credentials (e.g. sqlite:///... used in tests) so this never
+    # raises an IndexError at startup.
+    safe_target = db_url.split('@')[-1] if '@' in db_url else db_url
+    print(f"Database initialized with URL: {safe_target}")
